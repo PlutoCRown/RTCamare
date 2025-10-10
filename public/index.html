@@ -1,0 +1,125 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WebRTC 单向视频传输</title>
+  <style>
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif; margin: 24px; }
+    video { width: 100%; max-width: 720px; background: #000; border-radius: 8px; }
+    .row { display: flex; gap: 16px; flex-wrap: wrap; align-items: flex-start; }
+    .col { flex: 1 1 320px; }
+    code { background: #f5f5f5; padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h2>WebRTC 单向视频传输（单房间、单观众）</h2>
+  <p>
+    通过 URL 参数选择角色与房间：<code>?role=sender&room=abc</code> 或 <code>?role=viewer&room=abc</code>
+  </p>
+  <div class="row">
+    <div class="col">
+      <h3>本地视频</h3>
+      <video id="localVideo" autoplay playsinline muted></video>
+    </div>
+    <div class="col">
+      <h3>远端视频</h3>
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+  </div>
+
+  <script>
+    const params = new URLSearchParams(location.search);
+    const role = params.get('role') || 'sender';
+    const room = params.get('room') || 'demo';
+
+    const httpProto = location.protocol === 'https:' ? 'wss' : 'ws';
+    const ws = new WebSocket(`${httpProto}://${location.host}/ws`);
+
+    let pc;
+    let localStream;
+
+    const localVideo = document.getElementById('localVideo');
+    const remoteVideo = document.getElementById('remoteVideo');
+
+    function log(...args) { console.log('[webrtc]', ...args); }
+
+    function createPeerConnection() {
+      const config = {
+        iceServers: [
+          // 指向本服务自带的 STUN（请确保对端能访问到你的公网地址）
+          { urls: `stun:${location.hostname}:3478` }
+        ]
+      };
+      const _pc = new RTCPeerConnection(config);
+
+      _pc.onicecandidate = (e) => {
+        if (e.candidate) {
+          ws.send(JSON.stringify({ type: 'ice-candidate', candidate: e.candidate }));
+        }
+      };
+      _pc.ontrack = (e) => {
+        if (!remoteVideo.srcObject) {
+          remoteVideo.srcObject = e.streams[0];
+        }
+      };
+      return _pc;
+    }
+
+    async function startSender() {
+      localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+      localVideo.srcObject = localStream;
+      pc = createPeerConnection();
+      localStream.getTracks().forEach(t => pc.addTrack(t, localStream));
+    }
+
+    async function startViewer() {
+      pc = createPeerConnection();
+    }
+
+    async function makeAndSendOffer() {
+      const offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+      ws.send(JSON.stringify({ type: 'offer', sdp: offer }));
+    }
+
+    ws.addEventListener('open', async () => {
+      ws.send(JSON.stringify({ type: 'join', role, room }));
+      if (role === 'sender') {
+        await startSender();
+      } else {
+        await startViewer();
+        ws.send(JSON.stringify({ type: 'ready' })); // 提示服务器通知 sender
+      }
+    });
+
+    ws.addEventListener('message', async (ev) => {
+      const msg = JSON.parse(ev.data);
+      if (msg.type === 'viewer-ready' && role === 'sender') {
+        await makeAndSendOffer();
+      }
+      if (msg.type === 'offer' && role === 'viewer') {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+        const answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+        ws.send(JSON.stringify({ type: 'answer', sdp: answer }));
+      }
+      if (msg.type === 'answer' && role === 'sender') {
+        await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+      }
+      if (msg.type === 'ice-candidate') {
+        try { await pc.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (e) { log('addIceCandidate error', e); }
+      }
+      if (msg.type === 'sender-left' && role === 'viewer') {
+        log('sender left');
+      }
+      if (msg.type === 'viewer-left' && role === 'sender') {
+        log('viewer left');
+      }
+      if (msg.type === 'error') {
+        log('error', msg.reason);
+      }
+    });
+  </script>
+</body>
+</html>
