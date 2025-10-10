@@ -3,13 +3,28 @@ const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
+const os = require("os");
 const selfsigned = require("selfsigned");
 const stun = require("stun");
 const { WebSocketServer } = require("ws");
+var QRCode = require("qrcode");
 
 const HTTP_HOST = "0.0.0.0";
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "8080", 10);
 const STUN_PORT = parseInt(process.env.STUN_PORT || "3478", 10);
+
+// 获取本机IP地址
+function getLocalIP() {
+  const interfaces = os.networkInterfaces();
+  for (const name of Object.keys(interfaces)) {
+    for (const iface of interfaces[name]) {
+      if (iface.family === "IPv4" && !iface.internal) {
+        return iface.address;
+      }
+    }
+  }
+  return "localhost";
+}
 
 function getHttpsOptions() {
   // 允许通过环境变量提供证书路径；若无则生成自签证书
@@ -296,7 +311,27 @@ function startServer() {
   setupStun();
 
   server.listen(HTTP_PORT, HTTP_HOST, () => {
-    console.info(`HTTPS server listening on https://${HTTP_HOST}:${HTTP_PORT}`);
+    const localIP = getLocalIP();
+
+    console.log("\n" + "=".repeat(60));
+    console.log("🚀 WebRTC 视频传输服务已启动");
+    console.log("=".repeat(60));
+    console.log(`📡 服务地址：https://${localIP}:${HTTP_PORT}`);
+    console.log(
+      `📱 成为发送方：https://localhost:${HTTP_PORT}?role=sender&room=demo`
+    );
+    console.log("\n📱 扫码成为接收方：");
+
+    // 生成接收方二维码
+    const receiverUrl = `https://${localIP}:${HTTP_PORT}?role=receiver&room=demo`;
+    QRCode.toString(
+      receiverUrl,
+      { type: "terminal", small: true, errorCorrectionLevel: "L" },
+      function (err, url) {
+        console.log(url);
+        console.log(`🔧 STUN 服务器：udp://${localIP}:${STUN_PORT}`);
+      }
+    );
   });
 
   server.on("error", (err) => {
