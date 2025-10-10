@@ -10,88 +10,246 @@
           "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
           "Segoe UI Emoji", sans-serif;
         margin: 24px;
+        background: #f5f5f5;
       }
-      video {
-        width: 100%;
-        max-width: 72px;
-        background: #000;
+
+      .container {
+        max-width: 800px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 12px;
+        padding: 32px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      }
+
+      h1 {
+        text-align: center;
+        color: #333;
+        margin-bottom: 32px;
+      }
+
+      .setup-section {
+        text-align: center;
+        margin-bottom: 32px;
+      }
+
+      .room-input {
+        margin-bottom: 24px;
+      }
+
+      .room-input label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #555;
+      }
+
+      .room-input input {
+        width: 200px;
+        padding: 12px 16px;
+        border: 2px solid #ddd;
         border-radius: 8px;
+        font-size: 16px;
+        text-align: center;
       }
-      .row {
+
+      .room-input input:focus {
+        outline: none;
+        border-color: #007bff;
+      }
+
+      .role-buttons {
         display: flex;
         gap: 16px;
-        flex-wrap: wrap;
-        align-items: flex-start;
+        justify-content: center;
       }
-      .col {
-        flex: 1 1 320px;
+
+      .role-btn {
+        padding: 16px 32px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+        min-width: 140px;
       }
-      code {
-        background: #f5f5f5;
-        padding: 2px 6px;
-        border-radius: 4px;
+
+      .sender-btn {
+        background: #28a745;
+        color: white;
+      }
+
+      .sender-btn:hover {
+        background: #218838;
+      }
+
+      .receiver-btn {
+        background: #007bff;
+        color: white;
+      }
+
+      .receiver-btn:hover {
+        background: #0056b3;
+      }
+
+      .status-section {
+        text-align: center;
+        padding: 40px 20px;
+        display: none;
+      }
+
+      .status-icon {
+        font-size: 48px;
+        margin-bottom: 16px;
+      }
+
+      .status-text {
+        font-size: 18px;
+        color: #666;
+        margin-bottom: 16px;
+      }
+
+      .status-detail {
+        font-size: 14px;
+        color: #888;
+      }
+
+      .play-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 6px;
+        font-size: 16px;
+        cursor: pointer;
+        margin-top: 16px;
+        display: none;
+      }
+
+      .play-btn:hover {
+        background: #218838;
+      }
+
+      .video-container {
+        display: none;
+        text-align: center;
+        margin-top: 24px;
+      }
+
+      video {
+        width: 100%;
+        max-width: 640px;
+        background: #000;
+        border-radius: 8px;
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      }
+
+      .error {
+        color: #dc3545;
+        background: #f8d7da;
+        border: 1px solid #f5c6cb;
+        padding: 12px;
+        border-radius: 6px;
+        margin-top: 16px;
+        display: none;
       }
     </style>
   </head>
   <body>
-    <div class="row">
-      <div class="col">
-        <h3>Local</h3>
-        <video id="localVideo" autoplay playsinline muted></video>
+    <div class="container">
+      <h1>WebRTC 视频传输</h1>
+
+      <!-- 初始设置界面 -->
+      <div id="setupSection" class="setup-section">
+        <div class="room-input">
+          <label for="roomInput">房间号</label>
+          <input
+            type="text"
+            id="roomInput"
+            value="demo"
+            placeholder="输入房间号"
+          />
+        </div>
+        <div class="role-buttons">
+          <button id="senderBtn" class="role-btn sender-btn">成为发送方</button>
+          <button id="receiverBtn" class="role-btn receiver-btn">
+            成为接收方
+          </button>
+        </div>
       </div>
-      <div class="col">
-        <h3>Remote</h3>
+
+      <!-- 状态显示界面 -->
+      <div id="statusSection" class="status-section">
+        <div id="statusIcon" class="status-icon">📹</div>
+        <div id="statusText" class="status-text">准备中...</div>
+        <div id="statusDetail" class="status-detail"></div>
+        <button id="playBtn" class="play-btn">点击播放视频</button>
+        <div id="errorMsg" class="error"></div>
+      </div>
+
+      <!-- 视频显示界面 -->
+      <div id="videoContainer" class="video-container">
         <video id="remoteVideo" autoplay playsinline></video>
       </div>
     </div>
 
     <script>
-      const params = new URLSearchParams(location.search);
-      const role = params.get("role") || "sender";
-      const room = params.get("room") || "demo";
-
-      const httpProto = location.protocol === "https:" ? "wss" : "ws";
-      const ws = new WebSocket(`${httpProto}://${location.host}/ws`);
-
+      let ws;
       let pc;
       let localStream;
+      let currentRole = null;
+      let currentRoom = null;
 
-      const localVideo = document.getElementById("localVideo");
+      const setupSection = document.getElementById("setupSection");
+      const statusSection = document.getElementById("statusSection");
+      const videoContainer = document.getElementById("videoContainer");
+      const roomInput = document.getElementById("roomInput");
+      const senderBtn = document.getElementById("senderBtn");
+      const receiverBtn = document.getElementById("receiverBtn");
+      const statusIcon = document.getElementById("statusIcon");
+      const statusText = document.getElementById("statusText");
+      const statusDetail = document.getElementById("statusDetail");
+      const playBtn = document.getElementById("playBtn");
+      const errorMsg = document.getElementById("errorMsg");
       const remoteVideo = document.getElementById("remoteVideo");
 
-      // 添加视频事件监听器
-      remoteVideo.addEventListener("loadedmetadata", () => {
-        log("Remote video loadedmetadata", {
-          videoWidth: remoteVideo.videoWidth,
-          videoHeight: remoteVideo.videoHeight,
-          duration: remoteVideo.duration,
-        });
-      });
-
-      remoteVideo.addEventListener("canplay", () => {
-        log("Remote video canplay");
-      });
-
-      remoteVideo.addEventListener("play", () => {
-        log("Remote video play event");
-      });
-
-      remoteVideo.addEventListener("error", (e) => {
-        log("Remote video error", e);
-      });
-
-      function log(...args) {
-        console.log("[webrtc]", ...args);
+      function showError(message) {
+        errorMsg.textContent = message;
+        errorMsg.style.display = "block";
       }
 
-      function createPeerConnection() {
-        const config = {
-          iceServers: [
-            // 指向本服务自带的 STUN（请确保对端能访问到你的公网地址）
-            { urls: `stun:${location.hostname}:3478` },
-          ],
-        };
-        const _pc = new RTCPeerConnection(config);
+      function hideError() {
+        errorMsg.style.display = "none";
+      }
+
+      function updateStatus(icon, text, detail = "") {
+        statusIcon.textContent = icon;
+        statusText.textContent = text;
+        statusDetail.textContent = detail;
+      }
+
+      function showStatus() {
+        setupSection.style.display = "none";
+        statusSection.style.display = "block";
+      }
+
+      function showVideo() {
+        videoContainer.style.display = "block";
+        playBtn.style.display = "none";
+      }
+
+      async function createPeerConnection() {
+        let iceServers = [];
+        try {
+          const res = await fetch("/config", { credentials: "same-origin" });
+          if (res.ok) {
+            const data = await res.json();
+            if (Array.isArray(data.iceServers)) iceServers = data.iceServers;
+          }
+        } catch (_) {}
+
+        const _pc = new RTCPeerConnection({ iceServers });
 
         _pc.onicecandidate = (e) => {
           if (e.candidate) {
@@ -100,69 +258,46 @@
             );
           }
         };
+
         _pc.ontrack = (e) => {
-          log("ontrack event received", e);
           if (!remoteVideo.srcObject) {
             remoteVideo.srcObject = e.streams[0];
-            log("remote video srcObject set", e.streams[0]);
-
-            // 确保视频元素属性正确
-            remoteVideo.muted = false; // 确保不是静音状态
-            remoteVideo.autoplay = true;
-            remoteVideo.playsInline = true;
-
-            // 尝试手动播放
-            remoteVideo
-              .play()
-              .then(() => {
-                log("Remote video play() succeeded");
-              })
-              .catch((err) => {
-                log("Remote video play() failed", err);
-              });
-
-            // 检查视频元素状态
-            setTimeout(() => {
-              log("Video element state:", {
-                srcObject: remoteVideo.srcObject,
-                videoWidth: remoteVideo.videoWidth,
-                videoHeight: remoteVideo.videoHeight,
-                readyState: remoteVideo.readyState,
-                paused: remoteVideo.paused,
-                muted: remoteVideo.muted,
-                autoplay: remoteVideo.autoplay,
-              });
-            }, 1000);
+            playBtn.style.display = "inline-block";
+            updateStatus("🎥", "视频已就绪", "点击下方按钮开始播放");
           }
         };
 
         _pc.oniceconnectionstatechange = () => {
-          log("ICE connection state:", _pc.iceConnectionState);
-        };
-
-        _pc.onconnectionstatechange = () => {
-          log("Connection state:", _pc.connectionState);
+          if (_pc.iceConnectionState === "connected") {
+            if (currentRole === "sender") {
+              updateStatus("📡", "正在推流", `房间: ${currentRoom}`);
+            }
+          }
         };
 
         return _pc;
       }
 
       async function startSender() {
-        localStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: false,
-        });
-        localVideo.srcObject = localStream;
-        pc = await createPeerConnection();
-        localStream.getTracks().forEach((t) => {
-          log("adding track to sender", t);
-          pc.addTrack(t, localStream);
-        });
+        try {
+          updateStatus("📹", "正在申请摄像头权限...", "");
+          localStream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+            audio: false,
+          });
+
+          pc = await createPeerConnection();
+          localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
+
+          updateStatus("📡", "正在向房间推流", `房间: ${currentRoom}`);
+        } catch (err) {
+          showError("无法访问摄像头: " + err.message);
+        }
       }
 
-      async function startViewer() {
+      async function startReceiver() {
         pc = await createPeerConnection();
-        log("viewer peer connection created");
+        updateStatus("⏳", "等待发送方", `房间: ${currentRoom}`);
       }
 
       async function makeAndSendOffer() {
@@ -171,49 +306,97 @@
         ws.send(JSON.stringify({ type: "offer", sdp: offer }));
       }
 
-      ws.addEventListener("open", async () => {
-        ws.send(JSON.stringify({ type: "join", role, room }));
-        if (role === "sender") {
-          await startSender();
-        } else {
-          await startViewer();
-          ws.send(JSON.stringify({ type: "ready" })); // 提示服务器通知 sender
+      function connectWebSocket() {
+        const httpProto = location.protocol === "https:" ? "wss" : "ws";
+        ws = new WebSocket(`${httpProto}://${location.host}/ws`);
+
+        ws.addEventListener("open", async () => {
+          ws.send(
+            JSON.stringify({
+              type: "join",
+              role: currentRole,
+              room: currentRoom,
+            })
+          );
+
+          if (currentRole === "sender") {
+            await startSender();
+          } else {
+            await startReceiver();
+            ws.send(JSON.stringify({ type: "ready" }));
+          }
+        });
+
+        ws.addEventListener("message", async (ev) => {
+          const msg = JSON.parse(ev.data);
+
+          if (msg.type === "viewer-ready" && currentRole === "sender") {
+            await makeAndSendOffer();
+          }
+
+          if (msg.type === "offer" && currentRole === "receiver") {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({ type: "answer", sdp: answer }));
+          }
+
+          if (msg.type === "answer" && currentRole === "sender") {
+            await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          }
+
+          if (msg.type === "ice-candidate") {
+            try {
+              await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+            } catch (e) {
+              console.error("addIceCandidate error", e);
+            }
+          }
+
+          if (msg.type === "sender-left" && currentRole === "receiver") {
+            updateStatus("❌", "发送方已离开", "请等待新的发送方加入");
+            playBtn.style.display = "none";
+            videoContainer.style.display = "none";
+          }
+
+          if (msg.type === "viewer-left" && currentRole === "sender") {
+            updateStatus("📡", "等待接收方", `房间: ${currentRoom}`);
+          }
+
+          if (msg.type === "error") {
+            showError("连接错误: " + msg.reason);
+          }
+        });
+
+        ws.addEventListener("error", () => {
+          showError("WebSocket 连接失败");
+        });
+      }
+
+      playBtn.addEventListener("click", async () => {
+        try {
+          await remoteVideo.play();
+          showVideo();
+          updateStatus("🎥", "正在播放", `房间: ${currentRoom}`);
+        } catch (err) {
+          showError("播放失败: " + err.message);
         }
       });
 
-      ws.addEventListener("message", async (ev) => {
-        const msg = JSON.parse(ev.data);
-        if (msg.type === "viewer-ready" && role === "sender") {
-          await makeAndSendOffer();
-        }
-        if (msg.type === "offer" && role === "viewer") {
-          log("received offer, setting remote description");
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-          const answer = await pc.createAnswer();
-          await pc.setLocalDescription(answer);
-          log("sending answer");
-          ws.send(JSON.stringify({ type: "answer", sdp: answer }));
-        }
-        if (msg.type === "answer" && role === "sender") {
-          log("received answer, setting remote description");
-          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        }
-        if (msg.type === "ice-candidate") {
-          try {
-            await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
-          } catch (e) {
-            log("addIceCandidate error", e);
-          }
-        }
-        if (msg.type === "sender-left" && role === "viewer") {
-          log("sender left");
-        }
-        if (msg.type === "viewer-left" && role === "sender") {
-          log("viewer left");
-        }
-        if (msg.type === "error") {
-          log("error", msg.reason);
-        }
+      senderBtn.addEventListener("click", () => {
+        currentRole = "sender";
+        currentRoom = roomInput.value.trim() || "demo";
+        showStatus();
+        hideError();
+        connectWebSocket();
+      });
+
+      receiverBtn.addEventListener("click", () => {
+        currentRole = "receiver";
+        currentRoom = roomInput.value.trim() || "demo";
+        showStatus();
+        hideError();
+        connectWebSocket();
       });
     </script>
   </body>
