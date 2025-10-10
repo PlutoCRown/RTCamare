@@ -1,11 +1,9 @@
-const path = require("path");
+const http = require("http");
+const https = require("https");
 const fs = require("fs");
+const path = require("path");
+const url = require("url");
 const selfsigned = require("selfsigned");
-const fastify = require("fastify")({
-  logger: true,
-  https: getHttpsOptions(),
-});
-const fastifyStatic = require("@fastify/static");
 const stun = require("stun");
 const { WebSocketServer } = require("ws");
 
@@ -63,23 +61,121 @@ function getHttpsOptions() {
   return { key: pems.private, cert: pems.cert, allowHTTP1: true };
 }
 
-// ----- Fastify HTTP + static -----
-async function setupHttp() {
-  await fastify.register(fastifyStatic, {
-    root: path.join(__dirname, "public"),
-    prefix: "/",
-    index: ["index.html"],
+// MIME 类型映射
+const mimeTypes = {
+  ".html": "text/html",
+  ".css": "text/css",
+  ".js": "application/javascript",
+  ".json": "application/json",
+  ".png": "image/png",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".ico": "image/x-icon",
+};
+
+function getMimeType(filePath) {
+  const ext = path.extname(filePath).toLowerCase();
+  return mimeTypes[ext] || "application/octet-stream";
+}
+
+function serveStaticFile(req, res, filePath) {
+  const fullPath = path.join(__dirname, "public", filePath);
+
+  // 安全检查：确保文件在 public 目录内
+  if (!fullPath.startsWith(path.join(__dirname, "public"))) {
+    res.writeHead(403, { "Content-Type": "text/plain" });
+    res.end("Forbidden");
+    return;
+  }
+
+  fs.readFile(fullPath, (err, data) => {
+    if (err) {
+      if (err.code === "ENOENT") {
+        res.writeHead(404, { "Content-Type": "text/plain" });
+        res.end("Not Found");
+      } else {
+        res.writeHead(500, { "Content-Type": "text/plain" });
+        res.end("Internal Server Error");
+      }
+      return;
+    }
+
+    const mimeType = getMimeType(filePath);
+    res.writeHead(200, { "Content-Type": mimeType });
+    res.end(data);
   });
+}
 
-  fastify.get("/health", async () => ({ status: "ok" }));
+function handleRequest(req, res) {
+  const parsedUrl = url.parse(req.url, true);
+  const pathname = parsedUrl.pathname;
 
-  await fastify.listen({ port: HTTP_PORT, host: HTTP_HOST });
-  console.info(`HTTPS server listening on https://${HTTP_HOST}:${HTTP_PORT}`);
+  // 设置 CORS 头
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+
+  if (req.method === "OPTIONS") {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  // API 路由
+  if (pathname === "/health") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ status: "ok" }));
+    return;
+  }
+
+  if (pathname === "/config") {
+    const iceServers = [];
+
+    // 可选：来自环境变量的 STUN
+    if (process.env.STUN_URL) {
+      iceServers.push({ urls: process.env.STUN_URL });
+    }
+
+    // 本服务内置的 STUN
+    const reqHostHeader =
+      req.headers["x-forwarded-host"] || req.headers.host || "";
+    const hostname = (
+      req.headers.host ||
+      String(reqHostHeader).split(":")[0] ||
+      ""
+    ).trim();
+    if (hostname) {
+      iceServers.push({ urls: `stun:${hostname}:${STUN_PORT}` });
+    }
+
+    // 可选：来自环境变量的 TURN
+    if (
+      process.env.TURN_URL &&
+      process.env.TURN_USERNAME &&
+      process.env.TURN_PASSWORD
+    ) {
+      iceServers.push({
+        urls: process.env.TURN_URL,
+        username: process.env.TURN_USERNAME,
+        credential: process.env.TURN_PASSWORD,
+      });
+    }
+
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ iceServers }));
+    return;
+  }
+
+  // 静态文件服务
+  let filePath = pathname === "/" ? "/index.html" : pathname;
+  serveStaticFile(req, res, filePath);
 }
 
 // ----- WebSocket signaling (single-room, single-viewer) -----
-function setupWebSocket() {
-  const wss = new WebSocketServer({ server: fastify.server, path: "/ws" });
+function setupWebSocket(server) {
+  const wss = new WebSocketServer({ server, path: "/ws" });
 
   // room state: one sender and one viewer
   const roomState = new Map(); // roomId -> { sender: ws|null, viewer: ws|null }
@@ -182,7 +278,7 @@ function setupStun() {
     try {
       server.send(res, rinfo.port, rinfo.address);
     } catch (err) {
-      console.error({ err }, "STUN send error");
+      console.error("STUN send error:", err);
     }
   });
 
@@ -191,13 +287,22 @@ function setupStun() {
   });
 }
 
-(async () => {
-  try {
-    await setupHttp();
-    setupWebSocket();
-    setupStun();
-  } catch (err) {
-    console.error(err);
+// 启动服务器
+function startServer() {
+  const httpsOptions = getHttpsOptions();
+  const server = https.createServer(httpsOptions, handleRequest);
+
+  setupWebSocket(server);
+  setupStun();
+
+  server.listen(HTTP_PORT, HTTP_HOST, () => {
+    console.info(`HTTPS server listening on https://${HTTP_HOST}:${HTTP_PORT}`);
+  });
+
+  server.on("error", (err) => {
+    console.error("Server error:", err);
     process.exit(1);
-  }
-})();
+  });
+}
+
+startServer();
