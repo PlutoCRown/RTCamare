@@ -235,6 +235,7 @@ function setupWebSocket(server) {
           }
           room.sender = ws;
           safeSend(ws, { type: "joined", role: "sender", room: roomId });
+          console.log("难道viewer不再吗", roomId, room.viewer !== null);
           if (room.viewer) safeSend(ws, { type: "viewer-ready" });
         } else {
           if (room.viewer && room.viewer !== ws) {
@@ -242,6 +243,7 @@ function setupWebSocket(server) {
             return;
           }
           room.viewer = ws;
+          console.log("viewer进来了", roomId);
           safeSend(ws, { type: "joined", role: "viewer", room: roomId });
           if (room.sender) safeSend(room.sender, { type: "viewer-ready" });
         }
@@ -251,7 +253,12 @@ function setupWebSocket(server) {
       // Forward SDP/ICE between sender and viewer only within the same room
       if (!roomId) return;
       const room = getOrCreateRoom(roomId);
-
+      console.log(
+        "[WebSocket]",
+        msg.type,
+        { sender: room.sender !== null, viewer: room.viewer !== null },
+        role
+      );
       if (msg.type === "offer" && role === "sender") {
         safeSend(room.viewer, { type: "offer", sdp: msg.sdp });
       }
@@ -284,6 +291,7 @@ function setupStun() {
   const server = stun.createServer({ type: "udp4" });
 
   server.on("bindingRequest", (req, rinfo) => {
+    console.log("[STUN] bindingRequest", req, rinfo);
     const res = stun.createMessage(
       stun.constants.STUN_BINDING_RESPONSE,
       req.transactionId
@@ -317,7 +325,7 @@ function startServer() {
     console.log("=".repeat(60));
     console.log(`📡 服务地址：https://${localIP}:${HTTP_PORT}`);
     console.log(
-      `📱 成为接收方：https://localhost:${HTTP_PORT}?role=receiver&room=demo`
+      `📱 成为接收方：https://localhost:${HTTP_PORT}?role=viewer&room=demo`
     );
     console.log("\n📱 扫码成为发送方：");
 

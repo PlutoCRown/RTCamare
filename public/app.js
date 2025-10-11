@@ -3,6 +3,7 @@ let pc;
 let localStream;
 let currentRole = null;
 let currentRoom = null;
+let viewerReady = false;
 
 const setupSection = document.getElementById("setupSection");
 const statusSection = document.getElementById("statusSection");
@@ -63,6 +64,7 @@ async function createPeerConnection() {
   };
 
   _pc.ontrack = (e) => {
+    console.log("🈶了有了");
     if (!remoteVideo.srcObject) {
       remoteVideo.srcObject = e.streams[0];
       playBtn.style.display = "inline-block";
@@ -91,7 +93,8 @@ async function startSender() {
 
     pc = await createPeerConnection();
     localStream.getTracks().forEach((t) => pc.addTrack(t, localStream));
-
+    // 当viewerReady的时候，直接开推
+    if (viewerReady) makeAndSendOffer();
     updateStatus("📡", "正在向房间推流", `房间: ${currentRoom}`);
   } catch (err) {
     showError("无法访问摄像头: " + err.message);
@@ -104,8 +107,13 @@ async function startReceiver() {
 }
 
 async function makeAndSendOffer() {
+  if (!pc) {
+    viewerReady = true;
+    return;
+  }
   const offer = await pc.createOffer();
   await pc.setLocalDescription(offer);
+  console.log("viewer已经在了呀");
   ws.send(JSON.stringify({ type: "offer", sdp: offer }));
 }
 
@@ -137,7 +145,7 @@ function connectWebSocket() {
       await makeAndSendOffer();
     }
 
-    if (msg.type === "offer" && currentRole === "receiver") {
+    if (msg.type === "offer" && currentRole === "viewer") {
       await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
@@ -156,7 +164,7 @@ function connectWebSocket() {
       }
     }
 
-    if (msg.type === "sender-left" && currentRole === "receiver") {
+    if (msg.type === "sender-left" && currentRole === "viewer") {
       updateStatus("❌", "发送方已离开", "请等待新的发送方加入");
       playBtn.style.display = "none";
       videoContainer.style.display = "none";
@@ -196,7 +204,7 @@ senderBtn.addEventListener("click", () => {
 });
 
 receiverBtn.addEventListener("click", () => {
-  currentRole = "receiver";
+  currentRole = "viewer";
   currentRoom = roomInput.value.trim() || "demo";
   showStatus();
   hideError();
