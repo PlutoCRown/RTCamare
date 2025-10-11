@@ -94,7 +94,7 @@ function getMimeType(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   return mimeTypes[ext] || "application/octet-stream";
 }
-
+// region Static Server
 function serveStaticFile(req, res, filePath) {
   const fullPath = path.join(__dirname, "public", filePath);
 
@@ -122,6 +122,7 @@ function serveStaticFile(req, res, filePath) {
     res.end(data);
   });
 }
+// region HTTP Searver
 
 function handleRequest(req, res) {
   const parsedUrl = url.parse(req.url, true);
@@ -157,9 +158,7 @@ function handleRequest(req, res) {
     const reqHostHeader =
       req.headers["x-forwarded-host"] || req.headers.host || "";
     const hostname = (
-      req.headers.host ||
-      String(reqHostHeader).split(":")[0] ||
-      ""
+      String(req.headers.host || reqHostHeader).split(":")[0] || ""
     ).trim();
     if (hostname) {
       iceServers.push({ urls: `stun:${hostname}:${STUN_PORT}` });
@@ -188,7 +187,7 @@ function handleRequest(req, res) {
   serveStaticFile(req, res, filePath);
 }
 
-// ----- WebSocket signaling (single-room, single-viewer) -----
+// region----- WebSocket signaling (single-room, single-viewer) -----
 function setupWebSocket(server) {
   const wss = new WebSocketServer({ server, path: "/ws" });
 
@@ -280,7 +279,7 @@ function setupWebSocket(server) {
   });
 }
 
-// ----- STUN server (UDP 3478) -----
+// region----- STUN server (UDP 3478) -----
 function setupStun() {
   const server = stun.createServer({ type: "udp4" });
 
@@ -318,12 +317,12 @@ function startServer() {
     console.log("=".repeat(60));
     console.log(`📡 服务地址：https://${localIP}:${HTTP_PORT}`);
     console.log(
-      `📱 成为发送方：https://localhost:${HTTP_PORT}?role=sender&room=demo`
+      `📱 成为接收方：https://localhost:${HTTP_PORT}?role=receiver&room=demo`
     );
-    console.log("\n📱 扫码成为接收方：");
+    console.log("\n📱 扫码成为发送方：");
 
     // 生成接收方二维码
-    const receiverUrl = `https://${localIP}:${HTTP_PORT}?role=receiver&room=demo`;
+    const receiverUrl = `https://${localIP}:${HTTP_PORT}?role=sender&room=demo`;
     QRCode.toString(
       receiverUrl,
       { type: "terminal", small: true, errorCorrectionLevel: "L" },
