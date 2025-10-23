@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>接收方 - WebRTC 视频传输</title>
+    <link rel="stylesheet" href="styles/viewer.css" />
+  </head>
+  <body>
+    <!-- 全屏视频容器 -->
+    <div id="videoContainer" class="video-container">
+      <video id="remoteVideo" autoplay playsinline></video>
+    </div>
+
+    <!-- 初始化状态 -->
+    <div id="initState" class="overlay-state">
+      <div class="status-icon">⏳</div>
+      <div class="status-text">等待发送方</div>
+      <div class="status-detail" id="statusDetail"></div>
+    </div>
+
+    <!-- 错误状态 -->
+    <div id="errorState" class="overlay-state" style="display: none">
+      <div class="status-icon">❌</div>
+      <div class="status-text">连接失败</div>
+      <div class="status-detail" id="errorDetail"></div>
+      <button id="retryBtn" class="retry-btn">重试</button>
+      <button id="backBtn" class="back-btn">返回首页</button>
+    </div>
+
+    <!-- 可折叠的 UI 控制面板 -->
+    <div id="controlPanel" class="control-panel">
+      <button id="togglePanel" class="toggle-btn">📊</button>
+
+      <div id="panelContent" class="panel-content">
+        <div class="panel-header">
+          <h3>接收方控制台</h3>
+          <button id="closePanel" class="close-btn">×</button>
+        </div>
+
+        <div class="stats-grid">
+          <div class="stat-item">
+            <span class="stat-label">分辨率:</span>
+            <span id="resolution" class="stat-value">-</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">帧率:</span>
+            <span id="framerate" class="stat-value">-</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">码率:</span>
+            <span id="bitrate" class="stat-value">-</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label">延迟:</span>
+            <span id="latency" class="stat-value">-</span>
+          </div>
+        </div>
+
+        <div class="control-buttons">
+          <button id="fullscreenBtn" class="control-btn">全屏</button>
+          <button id="muteBtn" class="control-btn">静音</button>
+          <button id="stopBtn" class="control-btn stop">停止接收</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 等待新发送方的对话框 -->
+    <dialog id="waitingDialog" class="waiting-dialog">
+      <div class="dialog-content">
+        <div class="status-icon">⏳</div>
+        <div class="status-text">发送方已离开</div>
+        <div class="status-detail">正在等待新的发送方加入...</div>
+        <button id="cancelWaiting" class="cancel-btn">取消等待</button>
+      </div>
+    </dialog>
+
+    <script type="module" src="pages/viewer.js"></script>
+  </body>
+</html>

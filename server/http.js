@@ -94,10 +94,21 @@ function getMimeType(filePath) {
 
 // 静态文件服务
 function serveStaticFile(req, res, filePath) {
-  const fullPath = path.join(__dirname, "..", "public", filePath);
+  // 优先从 web 目录提供服务，如果不存在则从 public 目录
+  let fullPath = path.join(__dirname, "..", "web", filePath);
+  let isWebFile = true;
 
-  // 安全检查：确保文件在 public 目录内
-  if (!fullPath.startsWith(path.join(__dirname, "..", "public"))) {
+  // 检查 web 目录中是否存在文件
+  if (!fs.existsSync(fullPath)) {
+    fullPath = path.join(__dirname, "..", "public", filePath);
+    isWebFile = false;
+  }
+
+  // 安全检查：确保文件在允许的目录内
+  const webDir = path.join(__dirname, "..", "web");
+  const publicDir = path.join(__dirname, "..", "public");
+
+  if (!fullPath.startsWith(webDir) && !fullPath.startsWith(publicDir)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("Forbidden");
     return;
@@ -180,8 +191,15 @@ function handleRequest(req, res) {
     return;
   }
 
+  // 根路径重定向到新的首页
+  if (pathname === "/") {
+    res.writeHead(302, { Location: "/index.html" });
+    res.end();
+    return;
+  }
+
   // 静态文件服务
-  let filePath = pathname === "/" ? "/index.html" : pathname;
+  let filePath = pathname;
   serveStaticFile(req, res, filePath);
 }
 
