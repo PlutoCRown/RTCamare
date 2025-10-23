@@ -2,11 +2,11 @@
   "name": "rtc-native-server",
   "version": "1.0.0",
   "private": true,
-  "main": "dist/server.js",
+  "main": "dist/server/index.js",
   "license": "MIT",
   "scripts": {
-    "start": "node dist/server.js",
-    "dev": "nodemon server.js",
+    "start": "node dist/server/index.js",
+    "dev": "nodemon server/index.js",
     "build": "rspack build",
     "build:prod": "NODE_ENV=production rspack build"
   },

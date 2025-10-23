@@ -3,10 +3,10 @@ const path = require("path");
 module.exports = {
   mode: process.env.NODE_ENV === "production" ? "production" : "development",
   target: "node",
-  entry: "./server.js",
+  entry: "./server/index.js",
   output: {
     path: path.resolve(__dirname, "dist"),
-    filename: "server.js",
+    filename: "server/index.js",
     clean: true,
   },
   resolve: {
