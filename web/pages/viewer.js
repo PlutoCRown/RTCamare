@@ -51,6 +51,15 @@ class ViewerPage {
   }
 
   bindEvents() {
+    // 视频容器点击播放（用户交互后播放）
+    this.videoContainer.addEventListener("click", () => {
+      if (this.remoteVideo.srcObject && this.remoteVideo.paused) {
+        this.remoteVideo.play().catch((err) => {
+          console.error("Failed to play video on click:", err);
+        });
+      }
+    });
+
     // 控制面板
     this.togglePanel.addEventListener("click", () => {
       this.toggleControlPanel();
@@ -127,10 +136,31 @@ class ViewerPage {
 
       // 设置远程流处理
       pc.ontrack = (event) => {
-        console.log("Received remote stream");
+        console.log("Received remote stream", event);
         if (!this.remoteVideo.srcObject) {
           this.remoteVideo.srcObject = event.streams[0];
-          this.autoPlayVideo();
+          // 先切换状态显示视频元素，不强制自动播放
+          // 视频元素有 autoplay 属性，会在用户交互后自动播放
+          this.stateManager.setState(StateManager.STATES.ACTIVE);
+          // 尝试播放，但不阻塞（失败也没关系，用户交互后会播放）
+          this.autoPlayVideo().catch(() => {
+            // 自动播放失败是正常的，用户交互后会播放
+            console.log("Auto-play blocked, waiting for user interaction");
+          });
+        }
+      };
+
+      // 设置连接状态监听
+      pc.oniceconnectionstatechange = () => {
+        console.log("ICE connection state:", pc.iceConnectionState);
+        if (
+          pc.iceConnectionState === "connected" ||
+          pc.iceConnectionState === "completed"
+        ) {
+          // 如果已经有流，确保状态是 ACTIVE
+          if (this.remoteVideo.srcObject) {
+            this.stateManager.setState(StateManager.STATES.ACTIVE);
+          }
         }
       };
 
@@ -206,7 +236,13 @@ class ViewerPage {
         sdp: answer,
       });
 
-      this.stateManager.setState(StateManager.STATES.ACTIVE);
+      // 检查是否已经有接收器（表示媒体轨道已被添加）
+      // 如果 ontrack 事件在 setRemoteDescription 时已经触发，这里会设置状态
+      // 如果还没触发，ontrack 事件稍后会触发并设置状态
+      const hasReceivers = this.webrtc.pc.getReceivers().length > 0;
+      if (hasReceivers && this.remoteVideo.srcObject) {
+        this.stateManager.setState(StateManager.STATES.ACTIVE);
+      }
     } catch (error) {
       console.error("Failed to handle offer:", error);
       this.showError("处理连接失败: " + error.message);
