@@ -18,18 +18,20 @@ function startServer() {
 
   server.listen(HTTP_PORT, HTTP_HOST, () => {
     const localIP = getLocalIP();
+    // 前端端口：如果设置了FRONTEND_PORT环境变量则使用，否则默认3000
+    const FRONTEND_PORT = parseInt(process.env.FRONTEND_PORT || "3000", 10);
 
     console.log("\n" + "=".repeat(60));
     console.log("🚀 WebRTC 视频传输服务已启动");
     console.log("=".repeat(60));
-    console.log(`📡 服务地址：https://${localIP}:${HTTP_PORT}`);
+    console.log(`📡 服务地址：https://${localIP}:${FRONTEND_PORT}`);
     console.log(
-      `📱 成为接收方：https://localhost:${HTTP_PORT}?role=viewer&room=demo`
+      `📱 成为接收方：https://localhost:${FRONTEND_PORT}/viewer/demo`
     );
     console.log("\n📱 扫码成为发送方：");
 
     // 生成接收方二维码
-    const receiverUrl = `https://${localIP}:${HTTP_PORT}?role=sender&room=demo`;
+    const receiverUrl = `https://${localIP}:${FRONTEND_PORT}/sender/demo`;
     QRCode.toString(
       receiverUrl,
       { type: "terminal", small: true, errorCorrectionLevel: "L" },

@@ -1,6 +1,6 @@
 # WebRTC 视频传输服务
 
-一个基于 Node.js 的 WebRTC 视频传输服务，支持自签 HTTPS 证书和二维码快速连接。
+一个基于 Node.js 的 WebRTC 视频传输服务，前端使用 HTTPS（通过 rsbuild 自动生成证书），后端使用 HTTP，支持二维码快速连接。
 
 ## 🚀 快速开始
 
@@ -43,9 +43,9 @@ npm start
 🚀 WebRTC 视频传输服务已启动
 ============================================================
 📡 服务地址：https://192.168.1.100:8080
-📱 成为发送方：https://localhost:8080?role=sender&room=demo
+📱 成为接收方：https://localhost:8080/viewer/demo
 
-📱 扫码成为接收方：
+📱 扫码成为发送方：
 [二维码]
 ============================================================
 🔧 STUN 服务器：udp://192.168.1.100:3478
@@ -69,11 +69,9 @@ npm start
 
 ### 环境变量
 
-- `HTTP_PORT`: HTTP 端口（默认：8080）
+- `HTTP_PORT`: 后端 HTTP 端口（默认：8080）
 - `STUN_PORT`: STUN 端口（默认：3478）
-- `TLS_KEY_PATH`: 自定义 TLS 私钥路径
-- `TLS_CERT_PATH`: 自定义 TLS 证书路径
-- `TLS_COMMON_NAME`: 证书通用名称（默认：localhost）
+- `FRONTEND_PORT`: 前端 HTTPS 端口（默认：3000，仅在开发模式下使用）
 - `STUN_URL`: 外部 STUN 服务器
 - `TURN_URL`: TURN 服务器地址
 - `TURN_USERNAME`: TURN 用户名
@@ -159,9 +157,10 @@ npm run build:prod
 
 ## 🔒 安全说明
 
-- 使用自签证书，浏览器会显示安全警告，选择"继续访问"即可
-- 仅用于内网或开发环境，不建议在生产环境使用
-- 如需生产环境，请使用正式的 SSL 证书
+- **开发模式**：前端通过 `@rsbuild/plugin-basic-ssl` 自动生成自签证书，浏览器会显示安全警告，选择"继续访问"即可
+- **生产模式**：后端使用 HTTP，前端静态文件由后端服务器提供（如需 HTTPS，请使用反向代理如 Nginx）
+- 仅用于内网或开发环境，不建议在生产环境直接使用
+- 如需生产环境 HTTPS，建议使用 Nginx 等反向代理配置正式 SSL 证书
 
 ## 📋 系统要求
 

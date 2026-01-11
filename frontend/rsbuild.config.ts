@@ -1,9 +1,10 @@
 import { defineConfig } from "@rsbuild/core";
 import { pluginReact } from "@rsbuild/plugin-react";
+import { pluginBasicSsl } from "@rsbuild/plugin-basic-ssl";
 import path from "path";
 
 export default defineConfig({
-  plugins: [pluginReact()],
+  plugins: [pluginReact(), pluginBasicSsl()], // plugin-basic-ssl 会自动启用 HTTPS
   html: {
     template: "./src/index.html",
   },
@@ -25,9 +26,8 @@ export default defineConfig({
         ws: true,
       },
       "/config": {
-        target: "https://localhost:8080",
+        target: "http://localhost:8080", // 后端使用 HTTP
         changeOrigin: true,
-        secure: false,
       },
     },
   },

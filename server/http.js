@@ -1,10 +1,8 @@
 const http = require("http");
-const https = require("https");
 const fs = require("fs");
 const path = require("path");
 const url = require("url");
 const os = require("os");
-const selfsigned = require("selfsigned");
 
 const HTTP_HOST = "0.0.0.0";
 const HTTP_PORT = parseInt(process.env.HTTP_PORT || "8080", 10);
@@ -21,56 +19,6 @@ function getLocalIP() {
     }
   }
   return "localhost";
-}
-
-function getHttpsOptions() {
-  // 允许通过环境变量提供证书路径；若无则生成自签证书
-  const keyPath = process.env.TLS_KEY_PATH;
-  const certPath = process.env.TLS_CERT_PATH;
-  try {
-    if (
-      keyPath &&
-      certPath &&
-      fs.existsSync(keyPath) &&
-      fs.existsSync(certPath)
-    ) {
-      return {
-        key: fs.readFileSync(keyPath),
-        cert: fs.readFileSync(certPath),
-        allowHTTP1: true,
-      };
-    }
-  } catch (_) {}
-
-  // 生成 365 天有效期的自签证书（开发用途）
-  const pems = selfsigned.generate(
-    [{ name: "commonName", value: process.env.TLS_COMMON_NAME || "localhost" }],
-    {
-      days: 365,
-      keySize: 2048,
-      algorithm: "sha256",
-      extensions: [
-        { name: "basicConstraints", cA: true },
-        {
-          name: "keyUsage",
-          keyCertSign: true,
-          digitalSignature: true,
-          nonRepudiation: true,
-          keyEncipherment: true,
-          dataEncipherment: true,
-        },
-        { name: "extKeyUsage", serverAuth: true, clientAuth: true },
-        {
-          name: "subjectAltName",
-          altNames: [
-            { type: 2, value: "localhost" }, // DNS
-            { type: 7, ip: "127.0.0.1" }, // IP
-          ],
-        },
-      ],
-    }
-  );
-  return { key: pems.private, cert: pems.cert, allowHTTP1: true };
 }
 
 // MIME 类型映射
@@ -193,7 +141,11 @@ function handleRequest(req, res) {
 
   // 静态文件服务（支持SPA路由）
   // 如果是API路由或WebSocket路径，不处理
-  if (pathname.startsWith("/ws") || pathname.startsWith("/config") || pathname.startsWith("/health")) {
+  if (
+    pathname.startsWith("/ws") ||
+    pathname.startsWith("/config") ||
+    pathname.startsWith("/health")
+  ) {
     // API路由已在上面处理
     return;
   }
@@ -204,10 +156,9 @@ function handleRequest(req, res) {
   serveStaticFile(req, res, filePath);
 }
 
-// 创建 HTTP 服务器
+// 创建 HTTP 服务器（后端使用 HTTP，前端通过 rsbuild 使用 HTTPS）
 function createHttpServer() {
-  const httpsOptions = getHttpsOptions();
-  return https.createServer(httpsOptions, handleRequest);
+  return http.createServer(handleRequest);
 }
 
 module.exports = {

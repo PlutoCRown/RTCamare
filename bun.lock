@@ -12,6 +12,7 @@
       },
       "devDependencies": {
         "@rsbuild/core": "^1.7.2",
+        "@rsbuild/plugin-basic-ssl": "^1.2.1",
         "@rsbuild/plugin-react": "^1.4.2",
         "@rspack/cli": "^1.7.1",
         "@rspack/core": "^1.7.1",
@@ -65,6 +66,8 @@
     "@polka/url": ["@polka/url@1.0.0-next.29", "https://registry.npmmirror.com/@polka/url/-/url-1.0.0-next.29.tgz", {}, "sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww=="],
 
     "@rsbuild/core": ["@rsbuild/core@1.7.2", "https://registry.npmmirror.com/@rsbuild/core/-/core-1.7.2.tgz", { "dependencies": { "@rspack/core": "~1.7.1", "@rspack/lite-tapable": "~1.1.0", "@swc/helpers": "^0.5.18", "core-js": "~3.47.0", "jiti": "^2.6.1" }, "bin": { "rsbuild": "bin/rsbuild.js" } }, "sha512-VAFO6cM+cyg2ntxNW6g3tB2Jc5J5mpLjLluvm7VtW2uceNzyUlVv41o66Yp1t1ikxd3ljtqegViXem62JqzveA=="],
+
+    "@rsbuild/plugin-basic-ssl": ["@rsbuild/plugin-basic-ssl@1.2.1", "https://registry.npmmirror.com/@rsbuild/plugin-basic-ssl/-/plugin-basic-ssl-1.2.1.tgz", { "dependencies": { "selfsigned": "^3.0.1" }, "peerDependencies": { "@rsbuild/core": "1.x" }, "optionalPeers": ["@rsbuild/core"] }, "sha512-GcNcY7Solofxht9KcIq8gN0Tozr5YN/OIK8IgkRf/P9ogoQdLOu6mlz904thIbRHBHo88nQkAMX0ixVvtD17aw=="],
 
     "@rsbuild/plugin-react": ["@rsbuild/plugin-react@1.4.2", "https://registry.npmmirror.com/@rsbuild/plugin-react/-/plugin-react-1.4.2.tgz", { "dependencies": { "@rspack/plugin-react-refresh": "^1.5.2", "react-refresh": "^0.18.0" }, "peerDependencies": { "@rsbuild/core": "1.x" } }, "sha512-2rJb5mOuqVof2aDq4SbB1E65+0n1vjhAADipC88jvZRNuTOulg79fh7R4tsCiBMI4VWq46gSpwekiK8G5bq6jg=="],
 
@@ -731,6 +734,8 @@
     "yargs": ["yargs@17.7.2", "https://registry.npmmirror.com/yargs/-/yargs-17.7.2.tgz", { "dependencies": { "cliui": "^8.0.1", "escalade": "^3.1.1", "get-caller-file": "^2.0.5", "require-directory": "^2.1.1", "string-width": "^4.2.3", "y18n": "^5.0.5", "yargs-parser": "^21.1.1" } }, "sha512-7dSzzRQ++CKnNI/krKnYRV7JKKPUXMEh61soaHKg9mrWEhzFWhFnxPxGl+69cD1Ou63C13NUPCnmIcrvqCuM6w=="],
 
     "yargs-parser": ["yargs-parser@21.1.1", "https://registry.npmmirror.com/yargs-parser/-/yargs-parser-21.1.1.tgz", {}, "sha512-tVpsJW7DdjecAiFpbIB1e3qxIQsE6NoPc5/eTdrbbIC4h0LVsWhnoa3g+m2HclBIujHzsxZ4VJVA+GUuc2/LBw=="],
+
+    "@rsbuild/plugin-basic-ssl/selfsigned": ["selfsigned@3.0.1", "https://registry.npmmirror.com/selfsigned/-/selfsigned-3.0.1.tgz", { "dependencies": { "node-forge": "^1" } }, "sha512-6U6w6kSLrM9Zxo0D7mC7QdGS6ZZytMWBnj/vhF9p+dAHx6CwGezuRcO4VclTbrrI7mg7SD6zNiqXUuBHOVopNQ=="],
 
     "@types/serve-static/@types/send": ["@types/send@0.17.6", "https://registry.npmmirror.com/@types/send/-/send-0.17.6.tgz", { "dependencies": { "@types/mime": "^1", "@types/node": "*" } }, "sha512-Uqt8rPBE8SY0RK8JB1EzVOIZ32uqy8HwdxCnoCOsYrvnswqmFZ/k+9Ikidlk/ImhsdvBsloHbAlewb2IEBV/Og=="],
 

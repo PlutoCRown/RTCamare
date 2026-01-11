@@ -16,12 +16,12 @@
   },
   "dependencies": {
     "qrcode": "^1.5.4",
-    "selfsigned": "^2.4.1",
     "stun": "^2.1.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
     "@rsbuild/core": "^1.7.2",
+    "@rsbuild/plugin-basic-ssl": "^1.2.1",
     "@rsbuild/plugin-react": "^1.4.2",
     "@rspack/cli": "^1.7.1",
     "@rspack/core": "^1.7.1",
