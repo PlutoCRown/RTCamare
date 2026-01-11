@@ -117,10 +117,7 @@ export function Viewer() {
       const dataUrl = await QRCode.toDataURL(senderUrl, {
         width: 200,
         margin: 2,
-        color: {
-          dark: "#000000",
-          light: "#FFFFFF",
-        },
+        color: { dark: "#000000", light: "#FFFFFF" },
       });
       setQrCodeUrl(dataUrl);
     } catch (error) {
@@ -201,7 +198,8 @@ export function Viewer() {
         setStats(statsData);
       });
 
-      wsManager.send(createSocketMessage(SocketEventType.READY, {}));
+      // 注意：不再需要发送 READY 事件
+      // Viewer 加入房间后，服务器会自动发送 VIEWER_READY 给 Sender（如果 Sender 已存在）
     } catch (error: any) {
       console.error("Viewer initialization failed:", error);
       stateManager.setState(StateManager.STATES.ERROR, {

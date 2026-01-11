@@ -11,8 +11,7 @@
     "dev:backend": "bun --watch server/index.ts",
     "build": "npm run build:backend && npm run build:frontend",
     "build:frontend": "cd frontend && rsbuild build",
-    "build:backend": "rspack build",
-    "build:prod": "NODE_ENV=production npm run build"
+    "build:backend": "rspack build"
   },
   "dependencies": {
     "qrcode": "^1.5.4",

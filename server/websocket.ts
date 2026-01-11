@@ -3,7 +3,6 @@ import { Server } from "http";
 import {
   SocketEventType,
   SocketRole,
-  TypedSocketMessage,
   SocketEventPayloads,
   createSocketMessage,
   isSocketMessage,
@@ -184,9 +183,7 @@ export function setupWebSocket(server: Server): WebSocketServer {
                 `[WebSocket] Replacing dead sender connection in room ${roomId}`
               );
               // 如果之前的连接已经关闭但还在记录中，先清理
-              if (room.viewer) {
-                room.viewer.send(SocketEventType.SENDER_LEFT, {});
-              }
+              room.viewer?.send(SocketEventType.SENDER_LEFT, {});
             }
           }
           room.sender = senderManager;
@@ -211,13 +208,9 @@ export function setupWebSocket(server: Server): WebSocketServer {
               return;
             } else {
               // 连接不存活，允许新连接替换
-              console.log(
-                `[WebSocket] Replacing dead viewer connection in room ${roomId}`
-              );
+              console.log(`[WebSocket] 替换已经离开的viewer ${roomId}`);
               // 如果之前的连接已经关闭但还在记录中，先清理
-              if (room.sender) {
-                room.sender.send(SocketEventType.VIEWER_LEFT, {});
-              }
+              room.sender?.send(SocketEventType.VIEWER_LEFT, {});
             }
           }
           room.viewer = viewerManager;
@@ -227,9 +220,7 @@ export function setupWebSocket(server: Server): WebSocketServer {
             room: roomId,
             clientId: viewerManager.getClientId(),
           });
-          if (room.sender) {
-            room.sender.send(SocketEventType.VIEWER_READY, {});
-          }
+          room.sender?.send(SocketEventType.VIEWER_READY, {});
         }
         return;
       }
@@ -237,36 +228,19 @@ export function setupWebSocket(server: Server): WebSocketServer {
       // 在同一房间内的发送者和观看者之间转发 SDP/ICE
       if (!roomId) return;
       const room = getOrCreateRoom(roomId);
-      console.log(
-        "[WebSocket]",
-        msg.type,
-        { sender: room.sender !== null, viewer: room.viewer !== null },
-        role
-      );
-
       if (isSocketMessage(msg, SocketEventType.OFFER) && role === "sender") {
-        if (room.viewer) {
-          room.viewer.send(SocketEventType.OFFER, {
-            sdp: msg.sdp,
-          });
-        }
+        room.viewer?.send(SocketEventType.OFFER, { sdp: msg.sdp });
       }
 
       if (isSocketMessage(msg, SocketEventType.ANSWER) && role === "viewer") {
-        if (room.sender) {
-          room.sender.send(SocketEventType.ANSWER, {
-            sdp: msg.sdp,
-          });
-        }
+        room.sender?.send(SocketEventType.ANSWER, { sdp: msg.sdp });
       }
 
       if (isSocketMessage(msg, SocketEventType.ICE_CANDIDATE)) {
         const target = role === "sender" ? room.viewer : room.sender;
-        if (target) {
-          target.send(SocketEventType.ICE_CANDIDATE, {
-            candidate: msg.candidate,
-          });
-        }
+        target?.send(SocketEventType.ICE_CANDIDATE, {
+          candidate: msg.candidate,
+        });
       }
     });
 
@@ -275,15 +249,11 @@ export function setupWebSocket(server: Server): WebSocketServer {
       const room = getOrCreateRoom(roomId);
       if (role === "sender" && room.sender?.isSameSocket(ws)) {
         room.sender = null;
-        if (room.viewer) {
-          room.viewer.send(SocketEventType.SENDER_LEFT, {});
-        }
+        room.viewer?.send(SocketEventType.SENDER_LEFT, {});
       }
       if (role === "viewer" && room.viewer?.isSameSocket(ws)) {
         room.viewer = null;
-        if (room.sender) {
-          room.sender.send(SocketEventType.VIEWER_LEFT, {});
-        }
+        room.sender?.send(SocketEventType.VIEWER_LEFT, {});
       }
     });
   });

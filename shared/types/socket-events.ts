@@ -5,7 +5,6 @@ export enum SocketEventType {
   OFFER = "offer",
   ANSWER = "answer",
   ICE_CANDIDATE = "ice-candidate",
-  READY = "ready",
 
   // 服务器发送的事件
   JOINED = "joined",
@@ -35,8 +34,6 @@ export interface SocketEventPayloads {
   [SocketEventType.ICE_CANDIDATE]: {
     candidate: RTCIceCandidateInit;
   };
-  [SocketEventType.READY]: Record<string, never>; // 空对象
-
   // 服务器发送的事件
   [SocketEventType.JOINED]: {
     role: SocketRole;
