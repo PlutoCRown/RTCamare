@@ -94,21 +94,12 @@ function getMimeType(filePath) {
 
 // 静态文件服务
 function serveStaticFile(req, res, filePath) {
-  // 优先从 web 目录提供服务，如果不存在则从 public 目录
-  let fullPath = path.join(__dirname, "..", "web", filePath);
-  let isWebFile = true;
-
-  // 检查 web 目录中是否存在文件
-  if (!fs.existsSync(fullPath)) {
-    fullPath = path.join(__dirname, "..", "public", filePath);
-    isWebFile = false;
-  }
+  // 从 dist/public 目录提供服务（React应用构建产物）
+  const publicDir = path.join(__dirname, "..", "dist", "public");
+  let fullPath = path.join(publicDir, filePath);
 
   // 安全检查：确保文件在允许的目录内
-  const webDir = path.join(__dirname, "..", "web");
-  const publicDir = path.join(__dirname, "..", "public");
-
-  if (!fullPath.startsWith(webDir) && !fullPath.startsWith(publicDir)) {
+  if (!fullPath.startsWith(publicDir)) {
     res.writeHead(403, { "Content-Type": "text/plain" });
     res.end("Forbidden");
     return;
@@ -117,8 +108,17 @@ function serveStaticFile(req, res, filePath) {
   fs.readFile(fullPath, (err, data) => {
     if (err) {
       if (err.code === "ENOENT") {
-        res.writeHead(404, { "Content-Type": "text/plain" });
-        res.end("Not Found");
+        // 文件不存在，对于SPA应用，返回index.html
+        const indexPath = path.join(publicDir, "index.html");
+        fs.readFile(indexPath, (err, data) => {
+          if (err) {
+            res.writeHead(404, { "Content-Type": "text/plain" });
+            res.end("Not Found");
+            return;
+          }
+          res.writeHead(200, { "Content-Type": "text/html" });
+          res.end(data);
+        });
       } else {
         res.writeHead(500, { "Content-Type": "text/plain" });
         res.end("Internal Server Error");
@@ -191,15 +191,16 @@ function handleRequest(req, res) {
     return;
   }
 
-  // 根路径重定向到新的首页
-  if (pathname === "/") {
-    res.writeHead(302, { Location: "/index.html" });
-    res.end();
+  // 静态文件服务（支持SPA路由）
+  // 如果是API路由或WebSocket路径，不处理
+  if (pathname.startsWith("/ws") || pathname.startsWith("/config") || pathname.startsWith("/health")) {
+    // API路由已在上面处理
     return;
   }
 
-  // 静态文件服务
-  let filePath = pathname;
+  // 对于所有其他路径，尝试服务静态文件
+  // 如果文件不存在，serveStaticFile会返回index.html（SPA支持）
+  let filePath = pathname === "/" ? "/index.html" : pathname;
   serveStaticFile(req, res, filePath);
 }
 

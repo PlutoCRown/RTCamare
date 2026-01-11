@@ -1,14 +1,12 @@
 // WebSocket 连接管理类
 export class WebSocketManager {
-  constructor() {
-    this.ws = null;
-    this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.reconnectDelay = 1000;
-  }
+  ws: WebSocket | null = null;
+  reconnectAttempts = 0;
+  maxReconnectAttempts = 5;
+  reconnectDelay = 1000;
 
-  connect(role, room) {
-    return new Promise((resolve, reject) => {
+  connect(role: string, room: string) {
+    return new Promise<void>((resolve, reject) => {
       const protocol = location.protocol === "https:" ? "wss" : "ws";
       this.ws = new WebSocket(`${protocol}://${location.host}/ws`);
 
@@ -52,7 +50,7 @@ export class WebSocketManager {
     });
   }
 
-  send(message) {
+  send(message: any) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
@@ -60,7 +58,7 @@ export class WebSocketManager {
     }
   }
 
-  onMessage(callback) {
+  onMessage(callback: (message: any) => void) {
     if (this.ws) {
       this.ws.addEventListener("message", (event) => {
         try {

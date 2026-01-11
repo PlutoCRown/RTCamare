@@ -1,22 +1,21 @@
 // 状态管理工具类
 export class StateManager {
-  constructor() {
-    this.currentState = "init";
-    this.callbacks = new Map();
-  }
+  currentState: string = "init";
+  callbacks: Map<string, (data?: any) => void> = new Map();
 
-  setState(newState, data = {}) {
+  setState(newState: string, data: any = {}) {
     const oldState = this.currentState;
     this.currentState = newState;
 
     // 触发状态变化回调
     if (this.callbacks.has("stateChange")) {
-      this.callbacks.get("stateChange")(newState, oldState, data);
+      const callback = this.callbacks.get("stateChange")!;
+      (callback as (newState: string, oldState: string, data: any) => void)(newState, oldState, data);
     }
 
     // 触发特定状态回调
     if (this.callbacks.has(newState)) {
-      this.callbacks.get(newState)(data);
+      this.callbacks.get(newState)!(data);
     }
   }
 
@@ -24,11 +23,11 @@ export class StateManager {
     return this.currentState;
   }
 
-  onStateChange(callback) {
-    this.callbacks.set("stateChange", callback);
+  onStateChange(callback: (newState: string, oldState: string, data: any) => void) {
+    this.callbacks.set("stateChange", callback as (data?: any) => void);
   }
 
-  onState(state, callback) {
+  onState(state: string, callback: (data?: any) => void) {
     this.callbacks.set(state, callback);
   }
 
@@ -44,7 +43,7 @@ export class StateManager {
 
 // 错误处理工具类
 export class ErrorHandler {
-  static handleWebRTCError(error) {
+  static handleWebRTCError(error: any) {
     console.error("WebRTC Error:", error);
 
     if (error.name === "NotAllowedError") {
@@ -60,12 +59,12 @@ export class ErrorHandler {
     }
   }
 
-  static handleWebSocketError(error) {
+  static handleWebSocketError(error: any) {
     console.error("WebSocket Error:", error);
     return "网络连接失败，请检查网络连接后重试";
   }
 
-  static handleServerError(errorCode) {
+  static handleServerError(errorCode: string) {
     switch (errorCode) {
       case "sender-already-exists":
         return "房间中已有发送方，请选择其他房间或等待";

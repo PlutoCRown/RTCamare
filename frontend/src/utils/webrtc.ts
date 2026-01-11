@@ -1,11 +1,9 @@
 // WebRTC 工具类
 export class WebRTCManager {
-  constructor() {
-    this.pc = null;
-    this.localStream = null;
-    this.iceServers = [];
-    this.statsInterval = null;
-  }
+  pc: RTCPeerConnection | null = null;
+  localStream: MediaStream | null = null;
+  iceServers: RTCIceServer[] = [];
+  statsInterval: ReturnType<typeof setInterval> | null = null;
 
   async createPeerConnection() {
     try {
@@ -25,12 +23,12 @@ export class WebRTCManager {
     return this.pc;
   }
 
-  async getUserMedia(constraints = { video: true, audio: false }) {
+  async getUserMedia(constraints: MediaStreamConstraints = { video: true, audio: false }) {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
       return this.localStream;
     } catch (error) {
-      throw new Error(`无法访问摄像头: ${error.message}`);
+      throw new Error(`无法访问摄像头: ${(error as Error).message}`);
     }
   }
 
@@ -44,7 +42,7 @@ export class WebRTCManager {
     }
   }
 
-  async switchCamera(deviceId) {
+  async switchCamera(deviceId: string) {
     if (!this.localStream) return;
 
     try {
@@ -64,23 +62,28 @@ export class WebRTCManager {
         const sender = this.pc
           .getSenders()
           .find((s) => s.track && s.track.kind === "video");
-        if (sender) {
+        if (sender && newStream.getVideoTracks()[0]) {
           await sender.replaceTrack(newStream.getVideoTracks()[0]);
         }
       }
 
       return newStream;
     } catch (error) {
-      throw new Error(`切换摄像头失败: ${error.message}`);
+      throw new Error(`切换摄像头失败: ${(error as Error).message}`);
     }
   }
 
-  startStatsMonitoring(callback) {
+  startStatsMonitoring(callback: (stats: {
+    resolution: string;
+    framerate: string;
+    bitrate: string;
+    latency: string;
+  }) => void) {
     if (!this.pc) return;
 
     this.statsInterval = setInterval(async () => {
       try {
-        const stats = await this.pc.getStats();
+        const stats = await this.pc!.getStats();
         const statsData = this.parseStats(stats);
         callback(statsData);
       } catch (error) {
@@ -96,7 +99,7 @@ export class WebRTCManager {
     }
   }
 
-  parseStats(stats) {
+  parseStats(stats: RTCStatsReport) {
     const result = {
       resolution: "-",
       framerate: "-",
@@ -105,30 +108,23 @@ export class WebRTCManager {
     };
 
     stats.forEach((report) => {
-      if (report.type === "outbound-rtp" && report.mediaType === "video") {
-        result.resolution = `${report.frameWidth || 0}x${
-          report.frameHeight || 0
-        }`;
-        result.framerate = `${Math.round(report.framesPerSecond || 0)} fps`;
-        result.bitrate = `${Math.round(
-          ((report.bytesSent || 0) * 8) / 1000
-        )} kbps`;
+      if (report.type === "outbound-rtp" && "mediaType" in report && report.mediaType === "video") {
+        const rtpReport = report as any;
+        result.resolution = `${rtpReport.frameWidth || 0}x${rtpReport.frameHeight || 0}`;
+        result.framerate = `${Math.round(rtpReport.framesPerSecond || 0)} fps`;
+        result.bitrate = `${Math.round(((rtpReport.bytesSent || 0) * 8) / 1000)} kbps`;
       }
 
-      if (report.type === "inbound-rtp" && report.mediaType === "video") {
-        result.resolution = `${report.frameWidth || 0}x${
-          report.frameHeight || 0
-        }`;
-        result.framerate = `${Math.round(report.framesPerSecond || 0)} fps`;
-        result.bitrate = `${Math.round(
-          ((report.bytesReceived || 0) * 8) / 1000
-        )} kbps`;
+      if (report.type === "inbound-rtp" && "mediaType" in report && report.mediaType === "video") {
+        const rtpReport = report as any;
+        result.resolution = `${rtpReport.frameWidth || 0}x${rtpReport.frameHeight || 0}`;
+        result.framerate = `${Math.round(rtpReport.framesPerSecond || 0)} fps`;
+        result.bitrate = `${Math.round(((rtpReport.bytesReceived || 0) * 8) / 1000)} kbps`;
       }
 
-      if (report.type === "candidate-pair" && report.state === "succeeded") {
-        result.latency = `${Math.round(
-          report.currentRoundTripTime * 1000 || 0
-        )} ms`;
+      if (report.type === "candidate-pair" && "state" in report && report.state === "succeeded") {
+        const pairReport = report as any;
+        result.latency = `${Math.round((pairReport.currentRoundTripTime * 1000) || 0)} ms`;
       }
     });
 

@@ -1,5 +1,5 @@
 /* 首页样式 */
-body {
+.container {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji",
     "Segoe UI Emoji", sans-serif;
@@ -12,7 +12,7 @@ body {
   justify-content: center;
 }
 
-.home-container {
+.homeContainer {
   background: white;
   border-radius: 16px;
   padding: 48px;
@@ -22,18 +22,18 @@ body {
   width: 100%;
 }
 
-h1 {
+.title {
   color: #333;
   margin-bottom: 32px;
   font-size: 28px;
   font-weight: 600;
 }
 
-.room-input {
+.roomInput {
   margin-bottom: 32px;
 }
 
-.room-input label {
+.roomInputLabel {
   display: block;
   margin-bottom: 12px;
   font-weight: 500;
@@ -41,7 +41,7 @@ h1 {
   font-size: 16px;
 }
 
-.room-input input {
+.roomInputField {
   width: 100%;
   max-width: 300px;
   padding: 16px 20px;
@@ -50,22 +50,23 @@ h1 {
   font-size: 16px;
   text-align: center;
   transition: all 0.3s ease;
+  box-sizing: border-box;
 }
 
-.room-input input:focus {
+.roomInputField:focus {
   outline: none;
   border-color: #667eea;
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-.role-buttons {
+.roleButtons {
   display: flex;
   flex-direction: column;
   gap: 16px;
   align-items: center;
 }
 
-.role-btn {
+.roleBtn {
   padding: 18px 36px;
   border: none;
   border-radius: 12px;
@@ -80,24 +81,24 @@ h1 {
   gap: 8px;
 }
 
-.sender-btn {
+.senderBtn {
   background: linear-gradient(135deg, #28a745, #20c997);
   color: white;
   box-shadow: 0 4px 15px rgba(40, 167, 69, 0.3);
 }
 
-.sender-btn:hover {
+.senderBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(40, 167, 69, 0.4);
 }
 
-.receiver-btn {
+.receiverBtn {
   background: linear-gradient(135deg, #007bff, #6610f2);
   color: white;
   box-shadow: 0 4px 15px rgba(0, 123, 255, 0.3);
 }
 
-.receiver-btn:hover {
+.receiverBtn:hover {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(0, 123, 255, 0.4);
 }
@@ -113,16 +114,16 @@ h1 {
 }
 
 @media (max-width: 600px) {
-  .home-container {
+  .homeContainer {
     margin: 16px;
     padding: 32px 24px;
   }
   
-  .role-buttons {
+  .roleButtons {
     flex-direction: column;
   }
   
-  .role-btn {
+  .roleBtn {
     width: 100%;
     max-width: 280px;
   }
