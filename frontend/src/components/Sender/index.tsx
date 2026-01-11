@@ -20,6 +20,8 @@ export function Sender() {
   const webrtcRef = useRef<WebRTCManager | null>(null);
   const wsManagerRef = useRef<WebSocketManager | null>(null);
   const stateManagerRef = useRef<StateManager | null>(null);
+  const isInitializedRef = useRef<string | undefined>(undefined);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const [state, setState] = useState<PageState>(PageState.INIT);
   const [statusIcon, setStatusIcon] = useState("📹");
@@ -35,6 +37,12 @@ export function Sender() {
   });
 
   useEffect(() => {
+    // 防止在严格模式下重复初始化
+    if (isInitializedRef.current == room) {
+      return;
+    }
+    isInitializedRef.current = room;
+
     webrtcRef.current = new WebRTCManager();
     wsManagerRef.current = new WebSocketManager();
     stateManagerRef.current = new StateManager();
@@ -69,8 +77,13 @@ export function Sender() {
 
     startSender();
 
+    cleanupRef.current = cleanup;
+
     return () => {
-      cleanup();
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
     };
   }, [room]);
 
@@ -106,10 +119,7 @@ export function Sender() {
         console.log("Joined room as sender", msg.role, msg.room);
       });
 
-      wsManager.on(SocketEventType.VIEWER_READY, () => {
-        makeAndSendOffer();
-      });
-
+      wsManager.on(SocketEventType.VIEWER_READY, makeAndSendOffer);
       wsManager.on(SocketEventType.ANSWER, (msg) => {
         handleAnswer(msg.sdp);
       });

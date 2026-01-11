@@ -9,12 +9,27 @@ import {
   isSocketMessage,
 } from "@shared/types/socket-events";
 
+// 生成随机 ID
+function generateClientId(): string {
+  return (
+    Math.random().toString(36).substring(2, 9) +
+    Date.now().toString(36).substring(7)
+  );
+}
+
 // WebSocket 连接管理器
 class SocketManager {
   private ws: WebSocket;
+  private clientId: string;
 
   constructor(ws: WebSocket) {
     this.ws = ws;
+    this.clientId = generateClientId();
+  }
+
+  // 获取客户端 ID
+  getClientId(): string {
+    return this.clientId;
   }
 
   // 发送消息
@@ -61,16 +76,18 @@ export function getRoomsStatus(): Array<{
   sender: {
     connected: boolean;
     online: boolean;
+    clientId: string | null;
   };
   viewer: {
     connected: boolean;
     online: boolean;
+    clientId: string | null;
   };
 }> {
   const status: Array<{
     roomId: string;
-    sender: { connected: boolean; online: boolean };
-    viewer: { connected: boolean; online: boolean };
+    sender: { connected: boolean; online: boolean; clientId: string | null };
+    viewer: { connected: boolean; online: boolean; clientId: string | null };
   }> = [];
 
   roomState.forEach((room, roomId) => {
@@ -79,15 +96,43 @@ export function getRoomsStatus(): Array<{
       sender: {
         connected: room.sender !== null,
         online: room.sender?.isOnline() || false,
+        clientId: room.sender?.getClientId() || null,
       },
       viewer: {
         connected: room.viewer !== null,
         online: room.viewer?.isOnline() || false,
+        clientId: room.viewer?.getClientId() || null,
       },
     });
   });
 
   return status;
+}
+
+// 根据 clientId 踢出连接
+export function kickClient(clientId: string): {
+  success: boolean;
+  message: string;
+} {
+  for (const [roomId, room] of roomState.entries()) {
+    if (room.sender && room.sender.getClientId() === clientId) {
+      room.sender.getWebSocket().close(1000, "Kicked by admin");
+      room.sender = null;
+      if (room.viewer) {
+        room.viewer.send(SocketEventType.SENDER_LEFT, {});
+      }
+      return { success: true, message: `Kicked sender from room ${roomId}` };
+    }
+    if (room.viewer && room.viewer.getClientId() === clientId) {
+      room.viewer.getWebSocket().close(1000, "Kicked by admin");
+      room.viewer = null;
+      if (room.sender) {
+        room.sender.send(SocketEventType.VIEWER_LEFT, {});
+      }
+      return { success: true, message: `Kicked viewer from room ${roomId}` };
+    }
+  }
+  return { success: false, message: "Client not found" };
 }
 
 // WebSocket 信令服务器（单房间，单观看者）
@@ -148,6 +193,7 @@ export function setupWebSocket(server: Server): WebSocketServer {
           senderManager.send(SocketEventType.JOINED, {
             role: "sender",
             room: roomId,
+            clientId: senderManager.getClientId(),
           });
           console.log("难道viewer不再吗", roomId, room.viewer !== null);
           if (room.viewer) {
@@ -179,6 +225,7 @@ export function setupWebSocket(server: Server): WebSocketServer {
           viewerManager.send(SocketEventType.JOINED, {
             role: "viewer",
             room: roomId,
+            clientId: viewerManager.getClientId(),
           });
           if (room.sender) {
             room.sender.send(SocketEventType.VIEWER_READY, {});

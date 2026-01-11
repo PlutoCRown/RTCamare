@@ -1,22 +1,22 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { WebRTCManager } from '../../utils/webrtc';
-import { WebSocketManager } from '../../utils/websocket';
-import { StateManager, ErrorHandler } from '../../utils/state-manager';
-import { PageState } from '../../types/enums';
-import { ErrorState } from '../shared/ErrorState';
-import { LoadingState } from '../shared/LoadingState';
-import { PlayButton } from '../shared/PlayButton';
-import { BackButton } from '../shared/BackButton';
+import { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "@tanstack/react-router";
+import { WebRTCManager } from "../../utils/webrtc";
+import { WebSocketManager } from "../../utils/websocket";
+import { StateManager, ErrorHandler } from "../../utils/state-manager";
+import { PageState } from "../../types/enums";
+import { ErrorState } from "../shared/ErrorState";
+import { LoadingState } from "../shared/LoadingState";
+import { PlayButton } from "../shared/PlayButton";
+import { BackButton } from "../shared/BackButton";
 import {
   SocketEventType,
   createSocketMessage,
-} from '../../../../shared/types/socket-events';
-import styles from './index.module.css';
+} from "../../../../shared/types/socket-events";
+import styles from "./index.module.css";
 
 export function Viewer() {
   const params = useParams({ strict: false });
-  const room = (params as any).room || 'demo';
+  const room: string = (params as any).room || "demo";
   const navigate = useNavigate();
   const webrtcRef = useRef<WebRTCManager | null>(null);
   const wsManagerRef = useRef<WebSocketManager | null>(null);
@@ -25,21 +25,35 @@ export function Viewer() {
   const videoContainerRef = useRef<HTMLDivElement>(null);
   const waitingDialogRef = useRef<HTMLDialogElement>(null);
   const controlPanelRef = useRef<HTMLDivElement>(null);
+  const isInitializedRef = useRef<string | undefined>(undefined);
+  const cleanupRef = useRef<(() => void) | null>(null);
 
   const [state, setState] = useState<PageState>(PageState.INIT);
-  const [statusIcon, setStatusIcon] = useState('⏳');
-  const [statusText, setStatusText] = useState('等待发送方');
-  const [statusDetail, setStatusDetail] = useState('');
-  const [errorDetail, setErrorDetail] = useState('');
-  const [stats, setStats] = useState({ resolution: '-', framerate: '-', bitrate: '-', latency: '-' });
+  const [statusIcon, setStatusIcon] = useState("⏳");
+  const [statusText, setStatusText] = useState("等待发送方");
+  const [statusDetail, setStatusDetail] = useState("");
+  const [errorDetail, setErrorDetail] = useState("");
+  const [stats, setStats] = useState({
+    resolution: "-",
+    framerate: "-",
+    bitrate: "-",
+    latency: "-",
+  });
   const [isPanelExpanded, setIsPanelExpanded] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showWaitingDialog, setShowWaitingDialog] = useState(false);
   const [isWaitingForNewSender, setIsWaitingForNewSender] = useState(false);
   const [showPlayButton, setShowPlayButton] = useState(false);
+  const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
 
   useEffect(() => {
+    // 防止在严格模式下重复初始化
+    if (isInitializedRef.current == room) {
+      return;
+    }
+    isInitializedRef.current = room;
+
     webrtcRef.current = new WebRTCManager();
     wsManagerRef.current = new WebSocketManager();
     stateManagerRef.current = new StateManager();
@@ -48,8 +62,8 @@ export function Viewer() {
 
     stateManager.onState(PageState.INIT, () => {
       setState(PageState.INIT);
-      setStatusIcon('⏳');
-      setStatusText('等待发送方');
+      setStatusIcon("⏳");
+      setStatusText("等待发送方");
       setStatusDetail(`房间: ${room}`);
     });
 
@@ -67,28 +81,55 @@ export function Viewer() {
       setIsWaitingForNewSender(true);
     });
 
+    // 生成二维码
+    generateQRCode();
+
     startViewer();
 
     const handleFullscreenChange = () => {
       setIsFullscreen(!!document.fullscreenElement);
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
 
     const handleKeyDown = (e: KeyboardEvent) => {
       handleKeyboard(e);
     };
 
-    document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener("keydown", handleKeyDown);
+
+    cleanupRef.current = cleanup;
 
     return () => {
-      cleanup();
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('keydown', handleKeyDown);
+      if (cleanupRef.current) {
+        cleanupRef.current();
+        cleanupRef.current = null;
+      }
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [room]);
 
+  const generateQRCode = async () => {
+    try {
+      const QRCode = await import("qrcode");
+      const senderUrl = `${location.origin}/sender/${room}`;
+      const dataUrl = await QRCode.toDataURL(senderUrl, {
+        width: 200,
+        margin: 2,
+        color: {
+          dark: "#000000",
+          light: "#FFFFFF",
+        },
+      });
+      setQrCodeUrl(dataUrl);
+    } catch (error) {
+      console.error("Failed to generate QR code:", error);
+    }
+  };
+
   const startViewer = async () => {
+    console.warn("接受方，启动！");
     const webrtc = webrtcRef.current!;
     const wsManager = wsManagerRef.current!;
     const stateManager = stateManagerRef.current!;
@@ -99,20 +140,26 @@ export function Viewer() {
       const pc = await webrtc.createPeerConnection();
 
       pc.ontrack = (event) => {
-        console.log('Received remote stream', event);
+        console.log("Received remote stream", event);
         if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
           remoteVideoRef.current.srcObject = event.streams[0];
           stateManager.setState(PageState.ACTIVE);
           autoPlayVideo().catch((error) => {
-            console.log('Auto-play blocked, waiting for user interaction', error);
+            console.log(
+              "Auto-play blocked, waiting for user interaction",
+              error
+            );
             setShowPlayButton(true);
           });
         }
       };
 
       pc.oniceconnectionstatechange = () => {
-        console.log('ICE connection state:', pc.iceConnectionState);
-        if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        console.log("ICE connection state:", pc.iceConnectionState);
+        if (
+          pc.iceConnectionState === "connected" ||
+          pc.iceConnectionState === "completed"
+        ) {
           if (remoteVideoRef.current?.srcObject) {
             stateManager.setState(PageState.ACTIVE);
           }
@@ -129,11 +176,11 @@ export function Viewer() {
         }
       };
 
-      await wsManager.connect('viewer', room);
+      await wsManager.connect("viewer", room);
 
       // 使用类型安全的消息处理
       wsManager.on(SocketEventType.JOINED, (msg) => {
-        console.log('Joined room as viewer', msg.role, msg.room);
+        console.log("Joined room as viewer in", msg.room);
       });
 
       wsManager.on(SocketEventType.OFFER, (msg) => {
@@ -160,17 +207,14 @@ export function Viewer() {
         setStats(statsData);
       });
 
-      wsManager.send(
-        createSocketMessage(SocketEventType.READY, {})
-      );
+      wsManager.send(createSocketMessage(SocketEventType.READY, {}));
     } catch (error: any) {
-      console.error('Viewer initialization failed:', error);
+      console.error("Viewer initialization failed:", error);
       stateManager.setState(StateManager.STATES.ERROR, {
         message: ErrorHandler.handleWebRTCError(error),
       });
     }
   };
-
 
   const handleOffer = async (sdp: RTCSessionDescriptionInit) => {
     const webrtc = webrtcRef.current!;
@@ -193,7 +237,7 @@ export function Viewer() {
         stateManager.setState(PageState.ACTIVE);
       }
     } catch (error: any) {
-      console.error('Failed to handle offer:', error);
+      console.error("Failed to handle offer:", error);
     }
   };
 
@@ -202,7 +246,7 @@ export function Viewer() {
     try {
       await webrtc.pc!.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
-      console.error('Failed to add ICE candidate:', error);
+      console.error("Failed to add ICE candidate:", error);
     }
   };
 
@@ -216,10 +260,10 @@ export function Viewer() {
     if (remoteVideoRef.current) {
       try {
         await remoteVideoRef.current.play();
-        console.log('Video started playing');
+        console.log("Video started playing");
         setShowPlayButton(false);
       } catch (error) {
-        console.error('Failed to auto-play video:', error);
+        console.error("Failed to auto-play video:", error);
         setShowPlayButton(true);
       }
     }
@@ -231,7 +275,7 @@ export function Viewer() {
         await remoteVideoRef.current.play();
         setShowPlayButton(false);
       } catch (error) {
-        console.error('Failed to play video:', error);
+        console.error("Failed to play video:", error);
         // 保持播放按钮显示
       }
     }
@@ -269,7 +313,7 @@ export function Viewer() {
   const cancelWaitingForSender = () => {
     setShowWaitingDialog(false);
     setIsWaitingForNewSender(false);
-    navigate({ to: '/' });
+    navigate({ to: "/" });
   };
 
   const retry = () => {
@@ -279,7 +323,7 @@ export function Viewer() {
 
   const stopViewing = () => {
     cleanup();
-    navigate({ to: '/' });
+    navigate({ to: "/" });
   };
 
   const cleanup = () => {
@@ -296,15 +340,15 @@ export function Viewer() {
 
   const handleKeyboard = (e: KeyboardEvent) => {
     switch (e.key) {
-      case 'f':
-      case 'F':
+      case "f":
+      case "F":
         toggleFullscreen();
         break;
-      case 'm':
-      case 'M':
+      case "m":
+      case "M":
         toggleMute();
         break;
-      case 'Escape':
+      case "Escape":
         if (isPanelExpanded) {
           hideControlPanel();
         } else if (showWaitingDialog && waitingDialogRef.current?.open) {
@@ -316,12 +360,16 @@ export function Viewer() {
 
   return (
     <div className={styles.container}>
-      <div ref={videoContainerRef} className={styles.videoContainer} onClick={handleVideoClick}>
-        <video 
-          ref={remoteVideoRef} 
-          className={styles.remoteVideo} 
-          autoPlay 
-          playsInline 
+      <div
+        ref={videoContainerRef}
+        className={styles.videoContainer}
+        onClick={handleVideoClick}
+      >
+        <video
+          ref={remoteVideoRef}
+          className={styles.remoteVideo}
+          autoPlay
+          playsInline
           onPlay={() => setShowPlayButton(false)}
           onPause={() => {
             if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
@@ -336,18 +384,57 @@ export function Viewer() {
 
       {state === PageState.INIT && (
         <div className={styles.overlayState}>
-          <LoadingState icon={statusIcon} text={statusText} detail={statusDetail} />
+          <LoadingState
+            icon={statusIcon}
+            text={statusText}
+            detail={statusDetail}
+          />
+          <div className={styles.waitingActions}>
+            <div className={styles.qrSection}>
+              <div className={styles.qrTitle}>扫码成为发送方</div>
+              {qrCodeUrl ? (
+                <div className={styles.qrCodeContainer}>
+                  <img
+                    src={qrCodeUrl}
+                    alt="发送方二维码"
+                    className={styles.qrCode}
+                  />
+                </div>
+              ) : (
+                <div className={styles.qrCodePlaceholder}>生成二维码中...</div>
+              )}
+              <div className={styles.qrHint}>使用手机扫描二维码成为发送方</div>
+            </div>
+            <button
+              onClick={() => {
+                cleanup();
+                navigate({ to: "/" });
+              }}
+              className={styles.cancelBtn}
+            >
+              取消等待
+            </button>
+          </div>
         </div>
       )}
 
       {state === PageState.ERROR && (
         <div className={styles.overlayState}>
-          <ErrorState errorMessage={errorDetail} onRetry={retry} showBackButton={true} />
+          <ErrorState
+            errorMessage={errorDetail}
+            onRetry={retry}
+            showBackButton={true}
+          />
         </div>
       )}
 
       {state === PageState.ACTIVE && (
-        <div ref={controlPanelRef} className={`${styles.controlPanel} ${isPanelExpanded ? styles.expanded : ''}`}>
+        <div
+          ref={controlPanelRef}
+          className={`${styles.controlPanel} ${
+            isPanelExpanded ? styles.expanded : ""
+          }`}
+        >
           <button onClick={toggleControlPanel} className={styles.toggleBtn}>
             📊
           </button>
@@ -378,12 +465,15 @@ export function Viewer() {
             </div>
             <div className={styles.controlButtons}>
               <button onClick={toggleFullscreen} className={styles.controlBtn}>
-                {isFullscreen ? '退出全屏' : '全屏'}
+                {isFullscreen ? "退出全屏" : "全屏"}
               </button>
               <button onClick={toggleMute} className={styles.controlBtn}>
-                {isMuted ? '取消静音' : '静音'}
+                {isMuted ? "取消静音" : "静音"}
               </button>
-              <button onClick={stopViewing} className={`${styles.controlBtn} ${styles.stop}`}>
+              <button
+                onClick={stopViewing}
+                className={`${styles.controlBtn} ${styles.stop}`}
+              >
                 停止接收
               </button>
               <BackButton />
@@ -393,12 +483,19 @@ export function Viewer() {
       )}
 
       {showWaitingDialog && (
-        <dialog ref={waitingDialogRef} className={styles.waitingDialog} open={showWaitingDialog}>
+        <dialog
+          ref={waitingDialogRef}
+          className={styles.waitingDialog}
+          open={showWaitingDialog}
+        >
           <div className={styles.dialogContent}>
             <div className={styles.statusIcon}>⏳</div>
             <div className={styles.statusText}>发送方已离开</div>
             <div className={styles.statusDetail}>正在等待新的发送方加入...</div>
-            <button onClick={cancelWaitingForSender} className={styles.cancelBtn}>
+            <button
+              onClick={cancelWaitingForSender}
+              className={styles.cancelBtn}
+            >
               取消等待
             </button>
           </div>

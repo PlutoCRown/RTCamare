@@ -41,6 +41,7 @@ export interface SocketEventPayloads {
   [SocketEventType.JOINED]: {
     role: SocketRole;
     room: string;
+    clientId: string;
   };
   [SocketEventType.VIEWER_READY]: Record<string, never>;
   [SocketEventType.SENDER_READY]: Record<string, never>;

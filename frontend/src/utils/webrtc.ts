@@ -23,7 +23,9 @@ export class WebRTCManager {
     return this.pc;
   }
 
-  async getUserMedia(constraints: MediaStreamConstraints = { video: true, audio: false }) {
+  async getUserMedia(
+    constraints: MediaStreamConstraints = { video: true, audio: false }
+  ) {
     try {
       this.localStream = await navigator.mediaDevices.getUserMedia(constraints);
       return this.localStream;
@@ -73,12 +75,14 @@ export class WebRTCManager {
     }
   }
 
-  startStatsMonitoring(callback: (stats: {
-    resolution: string;
-    framerate: string;
-    bitrate: string;
-    latency: string;
-  }) => void) {
+  startStatsMonitoring(
+    callback: (stats: {
+      resolution: string;
+      framerate: string;
+      bitrate: string;
+      latency: string;
+    }) => void
+  ) {
     if (!this.pc) return;
 
     this.statsInterval = setInterval(async () => {
@@ -108,23 +112,45 @@ export class WebRTCManager {
     };
 
     stats.forEach((report) => {
-      if (report.type === "outbound-rtp" && "mediaType" in report && report.mediaType === "video") {
+      if (
+        report.type === "outbound-rtp" &&
+        "mediaType" in report &&
+        report.mediaType === "video"
+      ) {
         const rtpReport = report as any;
-        result.resolution = `${rtpReport.frameWidth || 0}x${rtpReport.frameHeight || 0}`;
+        result.resolution = `${rtpReport.frameWidth || 0}x${
+          rtpReport.frameHeight || 0
+        }`;
         result.framerate = `${Math.round(rtpReport.framesPerSecond || 0)} fps`;
-        result.bitrate = `${Math.round(((rtpReport.bytesSent || 0) * 8) / 1000)} kbps`;
+        result.bitrate = `${Math.round(
+          ((rtpReport.bytesSent || 0) * 8) / 1000
+        )} kbps`;
       }
 
-      if (report.type === "inbound-rtp" && "mediaType" in report && report.mediaType === "video") {
+      if (
+        report.type === "inbound-rtp" &&
+        "mediaType" in report &&
+        report.mediaType === "video"
+      ) {
         const rtpReport = report as any;
-        result.resolution = `${rtpReport.frameWidth || 0}x${rtpReport.frameHeight || 0}`;
+        result.resolution = `${rtpReport.frameWidth || 0}x${
+          rtpReport.frameHeight || 0
+        }`;
         result.framerate = `${Math.round(rtpReport.framesPerSecond || 0)} fps`;
-        result.bitrate = `${Math.round(((rtpReport.bytesReceived || 0) * 8) / 1000)} kbps`;
+        result.bitrate = `${Math.round(
+          ((rtpReport.bytesReceived || 0) * 8) / 1000
+        )} kbps`;
       }
 
-      if (report.type === "candidate-pair" && "state" in report && report.state === "succeeded") {
+      if (
+        report.type === "candidate-pair" &&
+        "state" in report &&
+        report.state === "succeeded"
+      ) {
         const pairReport = report as any;
-        result.latency = `${Math.round((pairReport.currentRoundTripTime * 1000) || 0)} ms`;
+        result.latency = `${Math.round(
+          pairReport.currentRoundTripTime * 1000 || 0
+        )} ms`;
       }
     });
 

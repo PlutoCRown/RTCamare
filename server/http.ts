@@ -1,7 +1,7 @@
 import * as http from "http";
 import * as url from "url";
 import * as os from "os";
-import { getRoomsStatus } from "./websocket";
+import { getRoomsStatus, kickClient } from "./websocket";
 
 export const HTTP_HOST = "0.0.0.0";
 export const HTTP_PORT = parseInt(process.env.HTTP_PORT || "8080", 10);
@@ -55,6 +55,41 @@ function handleRequest(
       res.end(JSON.stringify({ rooms: roomsStatus }));
     } catch (error) {
       console.error("Error getting rooms status:", error);
+      res.writeHead(500, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Internal server error" }));
+    }
+    return;
+  }
+
+  if (pathname === "/api/kick" && req.method === "POST") {
+    try {
+      let body = "";
+      req.on("data", (chunk) => {
+        body += chunk.toString();
+      });
+      req.on("end", () => {
+        try {
+          const { clientId } = JSON.parse(body);
+          if (!clientId || typeof clientId !== "string") {
+            res.writeHead(400, { "Content-Type": "application/json" });
+            res.end(JSON.stringify({ error: "Invalid clientId" }));
+            return;
+          }
+          const result = kickClient(clientId);
+          if (result.success) {
+            res.writeHead(200, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(result));
+          } else {
+            res.writeHead(404, { "Content-Type": "application/json" });
+            res.end(JSON.stringify(result));
+          }
+        } catch (error) {
+          res.writeHead(400, { "Content-Type": "application/json" });
+          res.end(JSON.stringify({ error: "Invalid JSON" }));
+        }
+      });
+    } catch (error) {
+      console.error("Error kicking client:", error);
       res.writeHead(500, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Internal server error" }));
     }
