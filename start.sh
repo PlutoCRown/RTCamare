@@ -5,15 +5,15 @@
 
 echo "🚀 启动 WebRTC 视频传输服务..."
 
-# 检查 Node.js 是否安装
-if ! command -v node &> /dev/null; then
-    echo "❌ 错误: 未找到 Node.js，请先安装 Node.js"
-    echo "   下载地址: https://nodejs.org/"
+# 检查 Bun 是否安装
+if ! command -v bun &> /dev/null; then
+    echo "❌ 错误: 未找到 Bun，请先安装 Bun"
+    echo "   安装命令: curl -fsSL https://bun.sh/install | bash"
     exit 1
 fi
 
 # 检查是否已构建
-if [ ! -f "dist/server.js" ]; then
+if [ ! -f "dist/server/index.js" ]; then
     echo "📦 首次运行，正在构建项目..."
     
     # 检查是否有 package.json
@@ -24,23 +24,11 @@ if [ ! -f "dist/server.js" ]; then
     
     # 安装依赖
     echo "📥 安装依赖..."
-    if command -v pnpm &> /dev/null; then
-        pnpm install
-    elif command -v yarn &> /dev/null; then
-        yarn install
-    else
-        npm install
-    fi
+    bun install
     
     # 构建项目
     echo "🔨 构建项目..."
-    if command -v pnpm &> /dev/null; then
-        pnpm run build:prod
-    elif command -v yarn &> /dev/null; then
-        yarn build:prod
-    else
-        npm run build:prod
-    fi
+    bun run build:prod
     
     if [ $? -ne 0 ]; then
         echo "❌ 构建失败"
@@ -52,7 +40,7 @@ fi
 
 # 启动服务
 echo "🎯 启动服务..."
-node dist/server.js
+bun dist/server/index.js
 
 # 如果服务异常退出，显示错误信息
 if [ $? -ne 0 ]; then
