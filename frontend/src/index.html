@@ -4,20 +4,20 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>WebRTC 视频传输</title>
+    <!-- 加载 eruda 方便调试 -->
     <script>
-      // 检测是否是移动设备
-      (function() {
+      (function () {
         function isMobile() {
-          return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent) ||
-                 (window.innerWidth <= 768);
+          return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
+            navigator.userAgent
+          );
         }
 
         if (isMobile()) {
-          // 动态加载 eruda
-          var script = document.createElement('script');
-          script.src = 'https://cdn.jsdelivr.net/npm/eruda';
-          script.onload = function() {
-            if (typeof eruda !== 'undefined') {
+          var script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/eruda";
+          script.onload = function () {
+            if (typeof eruda !== "undefined") {
               eruda.init();
             }
           };

@@ -8,7 +8,7 @@ export function setupStun(): Server {
   const server = stun.createServer({ type: "udp4" });
 
   server.on("bindingRequest", (req: Message, rinfo: RInfo) => {
-    console.log("[STUN] bindingRequest", req, rinfo);
+    console.log("[STUN] 绑定请求", req.transactionId, rinfo);
     const res = stun.createMessage(
       stun.constants.STUN_BINDING_RESPONSE,
       req.transactionId
@@ -22,7 +22,7 @@ export function setupStun(): Server {
   });
 
   server.listen(STUN_PORT, () => {
-    console.info(`STUN server listening on udp://0.0.0.0:${STUN_PORT}`);
+    console.info(`STUN 服务启动在: udp://0.0.0.0:${STUN_PORT}`);
   });
 
   return server;

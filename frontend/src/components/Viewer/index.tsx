@@ -144,13 +144,7 @@ export function Viewer() {
         if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
           remoteVideoRef.current.srcObject = event.streams[0];
           stateManager.setState(PageState.ACTIVE);
-          autoPlayVideo().catch((error) => {
-            console.log(
-              "Auto-play blocked, waiting for user interaction",
-              error
-            );
-            setShowPlayButton(true);
-          });
+          autoPlayVideo();
         }
       };
 

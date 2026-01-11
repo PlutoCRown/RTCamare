@@ -195,7 +195,7 @@ export function setupWebSocket(server: Server): WebSocketServer {
             room: roomId,
             clientId: senderManager.getClientId(),
           });
-          console.log("难道viewer不再吗", roomId, room.viewer !== null);
+          console.log(roomId, "的Viewer", room.viewer ? "存在" : "不存在");
           if (room.viewer) {
             senderManager.send(SocketEventType.VIEWER_READY, {});
           }

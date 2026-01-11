@@ -20,6 +20,7 @@ export function Sender() {
   const webrtcRef = useRef<WebRTCManager | null>(null);
   const wsManagerRef = useRef<WebSocketManager | null>(null);
   const stateManagerRef = useRef<StateManager | null>(null);
+  const localVideoRef = useRef<HTMLVideoElement>(null);
   const isInitializedRef = useRef<string | undefined>(undefined);
   const cleanupRef = useRef<(() => void) | null>(null);
 
@@ -34,7 +35,9 @@ export function Sender() {
     resolution: "-",
     framerate: "-",
     bitrate: "-",
+    latency: "-",
   });
+  const [localStream, setLocalStream] = useState<MediaStream | null>(null);
 
   useEffect(() => {
     // 防止在严格模式下重复初始化
@@ -87,7 +90,20 @@ export function Sender() {
     };
   }, [room]);
 
+  // 使用 useEffect 来设置视频预览，确保视频元素已经挂载
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+    }
+    return () => {
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = null;
+      }
+    };
+  }, [localStream]);
+
   const startSender = async () => {
+    console.warn("发送方，启动！");
     const webrtc = webrtcRef.current!;
     const wsManager = wsManagerRef.current!;
     const stateManager = stateManagerRef.current!;
@@ -96,6 +112,28 @@ export function Sender() {
       stateManager.setState(StateManager.STATES.INIT);
 
       await webrtc.getUserMedia();
+
+      // 设置本地流到 state，让 useEffect 处理视频预览
+      if (webrtc.localStream) {
+        setLocalStream(webrtc.localStream);
+
+        // 从本地视频流获取初始分辨率
+        const videoTrack = webrtc.localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const settings = videoTrack.getSettings();
+          if (settings.width && settings.height) {
+            setStats({
+              resolution: `${settings.width}x${settings.height}`,
+              framerate: settings.frameRate
+                ? `${Math.round(settings.frameRate)} fps`
+                : "-",
+              bitrate: "-",
+              latency: "-",
+            });
+          }
+        }
+      }
+
       const pc = await webrtc.createPeerConnection();
 
       webrtc.localStream!.getTracks().forEach((track) => {
@@ -147,7 +185,22 @@ export function Sender() {
       }
 
       webrtc.startStatsMonitoring((statsData) => {
-        setStats(statsData);
+        // 只有当 RTP stats 有实际数据时才更新（有 bitrate 或 latency 数据）
+        // 这样可以避免覆盖从本地 video track settings 获取的分辨率和帧率
+        setStats((prev) => {
+          const hasRtpData =
+            statsData.bitrate !== "-" || statsData.latency !== "-";
+          if (hasRtpData && statsData.resolution !== "-") {
+            // 有 RTP 数据时，使用 RTP 统计数据
+            return statsData;
+          }
+          // 否则保持本地设置的分辨率和帧率，只更新 bitrate 和 latency
+          return {
+            ...prev,
+            bitrate: statsData.bitrate,
+            latency: statsData.latency || prev.latency || "-",
+          };
+        });
       });
 
       stateManager.setState(StateManager.STATES.WAITING);
@@ -203,6 +256,26 @@ export function Sender() {
     const webrtc = webrtcRef.current!;
     try {
       await webrtc.switchCamera(deviceId);
+
+      // 更新本地流到 state
+      if (webrtc.localStream) {
+        setLocalStream(webrtc.localStream);
+
+        // 更新分辨率
+        const videoTrack = webrtc.localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          const settings = videoTrack.getSettings();
+          if (settings.width && settings.height) {
+            setStats((prev) => ({
+              ...prev,
+              resolution: `${settings.width}x${settings.height}`,
+              framerate: settings.frameRate
+                ? `${Math.round(settings.frameRate)} fps`
+                : "-",
+            }));
+          }
+        }
+      }
       console.log("Camera switched successfully");
     } catch (error: any) {
       console.error("Failed to switch camera:", error);
@@ -220,6 +293,9 @@ export function Sender() {
   };
 
   const cleanup = () => {
+    if (localVideoRef.current) {
+      localVideoRef.current.srcObject = null;
+    }
     if (webrtcRef.current) {
       webrtcRef.current.cleanup();
     }
@@ -252,6 +328,16 @@ export function Sender() {
             <div className={styles.statusIcon}>{statusIcon}</div>
             <div className={styles.statusText}>{statusText}</div>
             <div className={styles.statusDetail}>{statusDetail}</div>
+
+            <div className={styles.videoPreview}>
+              <video
+                ref={localVideoRef}
+                className={styles.localVideo}
+                autoPlay
+                playsInline
+                muted
+              />
+            </div>
 
             {cameras.length > 0 && (
               <div className={styles.cameraSelection}>
