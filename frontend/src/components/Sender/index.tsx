@@ -1,26 +1,38 @@
-import { useEffect, useRef, useState } from 'react';
-import { useParams, useNavigate } from '@tanstack/react-router';
-import { WebRTCManager } from '../../utils/webrtc';
-import { WebSocketManager } from '../../utils/websocket';
-import { StateManager, ErrorHandler } from '../../utils/state-manager';
-import styles from './index.module.css';
+import { useEffect, useRef, useState } from "react";
+import { useParams, useNavigate } from "@tanstack/react-router";
+import { WebRTCManager } from "../../utils/webrtc";
+import { WebSocketManager } from "../../utils/websocket";
+import { StateManager, ErrorHandler } from "../../utils/state-manager";
+import { PageState } from "../../types/enums";
+import { ErrorState } from "../shared/ErrorState";
+import { LoadingState } from "../shared/LoadingState";
+import { BackButton } from "../shared/BackButton";
+import {
+  SocketEventType,
+  createSocketMessage,
+} from "../../../../shared/types/socket-events";
+import styles from "./index.module.css";
 
 export function Sender() {
   const params = useParams({ strict: false });
-  const room = (params as any).room || 'demo';
+  const room = (params as any).room || "demo";
   const navigate = useNavigate();
   const webrtcRef = useRef<WebRTCManager | null>(null);
   const wsManagerRef = useRef<WebSocketManager | null>(null);
   const stateManagerRef = useRef<StateManager | null>(null);
 
-  const [state, setState] = useState<'init' | 'error' | 'active' | 'waiting'>('init');
-  const [statusIcon, setStatusIcon] = useState('📹');
-  const [statusText, setStatusText] = useState('正在申请摄像头权限...');
-  const [statusDetail, setStatusDetail] = useState('');
-  const [errorDetail, setErrorDetail] = useState('');
+  const [state, setState] = useState<PageState>(PageState.INIT);
+  const [statusIcon, setStatusIcon] = useState("📹");
+  const [statusText, setStatusText] = useState("正在申请摄像头权限...");
+  const [statusDetail, setStatusDetail] = useState("");
+  const [errorDetail, setErrorDetail] = useState("");
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState('');
-  const [stats, setStats] = useState({ resolution: '-', framerate: '-', bitrate: '-' });
+  const [selectedCamera, setSelectedCamera] = useState("");
+  const [stats, setStats] = useState({
+    resolution: "-",
+    framerate: "-",
+    bitrate: "-",
+  });
 
   useEffect(() => {
     webrtcRef.current = new WebRTCManager();
@@ -28,32 +40,30 @@ export function Sender() {
     stateManagerRef.current = new StateManager();
 
     const stateManager = stateManagerRef.current;
-    const webrtc = webrtcRef.current;
-    const wsManager = wsManagerRef.current;
 
-    stateManager.onState(StateManager.STATES.INIT, () => {
-      setState('init');
-      setStatusIcon('📹');
-      setStatusText('正在申请摄像头权限...');
-      setStatusDetail('');
+    stateManager.onState(PageState.INIT, () => {
+      setState(PageState.INIT);
+      setStatusIcon("📹");
+      setStatusText("正在申请摄像头权限...");
+      setStatusDetail("");
     });
 
-    stateManager.onState(StateManager.STATES.ERROR, (data: any) => {
-      setState('error');
+    stateManager.onState(PageState.ERROR, (data: any) => {
+      setState(PageState.ERROR);
       setErrorDetail(data.message);
     });
 
-    stateManager.onState(StateManager.STATES.ACTIVE, () => {
-      setState('active');
-      setStatusIcon('📡');
-      setStatusText('正在推流');
+    stateManager.onState(PageState.ACTIVE, () => {
+      setState(PageState.ACTIVE);
+      setStatusIcon("📡");
+      setStatusText("正在推流");
       setStatusDetail(`房间: ${room}`);
     });
 
-    stateManager.onState(StateManager.STATES.WAITING, () => {
-      setState('active');
-      setStatusIcon('📡');
-      setStatusText('等待接收方');
+    stateManager.onState(PageState.WAITING, () => {
+      setState(PageState.ACTIVE);
+      setStatusIcon("📡");
+      setStatusText("等待接收方");
       setStatusDetail(`房间: ${room}`);
     });
 
@@ -81,18 +91,44 @@ export function Sender() {
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          wsManager.send({
-            type: 'ice-candidate',
-            candidate: event.candidate,
-          });
+          wsManager.send(
+            createSocketMessage(SocketEventType.ICE_CANDIDATE, {
+              candidate: event.candidate,
+            })
+          );
         }
       };
 
-      await wsManager.connect('sender', room);
+      await wsManager.connect("sender", room);
 
-      wsManager.onMessage((msg: any) => {
-        handleWebSocketMessage(msg);
+      // 使用类型安全的消息处理
+      wsManager.on(SocketEventType.JOINED, (msg) => {
+        console.log("Joined room as sender", msg.role, msg.room);
       });
+
+      wsManager.on(SocketEventType.VIEWER_READY, () => {
+        makeAndSendOffer();
+      });
+
+      wsManager.on(SocketEventType.ANSWER, (msg) => {
+        handleAnswer(msg.sdp);
+      });
+
+      wsManager.on(SocketEventType.ICE_CANDIDATE, (msg) => {
+        handleIceCandidate(msg.candidate);
+      });
+
+      wsManager.on(SocketEventType.VIEWER_LEFT, () => {
+        stateManager.setState(StateManager.STATES.WAITING);
+      });
+
+      wsManager.on(SocketEventType.ERROR, (msg) => {
+        stateManager.setState(StateManager.STATES.ERROR, {
+          message: ErrorHandler.handleServerError(msg.reason),
+        });
+      });
+
+      wsManager.startListening();
 
       const cameraList = await webrtc.getAvailableCameras();
       setCameras(cameraList);
@@ -106,39 +142,10 @@ export function Sender() {
 
       stateManager.setState(StateManager.STATES.WAITING);
     } catch (error: any) {
-      console.error('Sender initialization failed:', error);
+      console.error("Sender initialization failed:", error);
       stateManager.setState(StateManager.STATES.ERROR, {
         message: ErrorHandler.handleWebRTCError(error),
       });
-    }
-  };
-
-  const handleWebSocketMessage = (msg: any) => {
-    const webrtc = webrtcRef.current!;
-    const wsManager = wsManagerRef.current!;
-    const stateManager = stateManagerRef.current!;
-
-    switch (msg.type) {
-      case 'joined':
-        console.log('Joined room as sender');
-        break;
-      case 'viewer-ready':
-        makeAndSendOffer();
-        break;
-      case 'answer':
-        handleAnswer(msg.sdp);
-        break;
-      case 'ice-candidate':
-        handleIceCandidate(msg.candidate);
-        break;
-      case 'viewer-left':
-        stateManager.setState(StateManager.STATES.WAITING);
-        break;
-      case 'error':
-        stateManager.setState(StateManager.STATES.ERROR, {
-          message: ErrorHandler.handleServerError(msg.reason),
-        });
-        break;
     }
   };
 
@@ -151,14 +158,15 @@ export function Sender() {
       const offer = await webrtc.pc!.createOffer();
       await webrtc.pc!.setLocalDescription(offer);
 
-      wsManager.send({
-        type: 'offer',
-        sdp: offer,
-      });
+      wsManager.send(
+        createSocketMessage(SocketEventType.OFFER, {
+          sdp: offer,
+        })
+      );
 
       stateManager.setState(StateManager.STATES.ACTIVE);
     } catch (error: any) {
-      console.error('Failed to create offer:', error);
+      console.error("Failed to create offer:", error);
     }
   };
 
@@ -167,7 +175,7 @@ export function Sender() {
     try {
       await webrtc.pc!.setRemoteDescription(new RTCSessionDescription(sdp));
     } catch (error) {
-      console.error('Failed to handle answer:', error);
+      console.error("Failed to handle answer:", error);
     }
   };
 
@@ -176,7 +184,7 @@ export function Sender() {
     try {
       await webrtc.pc!.addIceCandidate(new RTCIceCandidate(candidate));
     } catch (error) {
-      console.error('Failed to add ICE candidate:', error);
+      console.error("Failed to add ICE candidate:", error);
     }
   };
 
@@ -185,9 +193,9 @@ export function Sender() {
     const webrtc = webrtcRef.current!;
     try {
       await webrtc.switchCamera(deviceId);
-      console.log('Camera switched successfully');
+      console.log("Camera switched successfully");
     } catch (error: any) {
-      console.error('Failed to switch camera:', error);
+      console.error("Failed to switch camera:", error);
     }
   };
 
@@ -198,7 +206,7 @@ export function Sender() {
 
   const stopStreaming = () => {
     cleanup();
-    navigate({ to: '/' });
+    navigate({ to: "/" });
   };
 
   const cleanup = () => {
@@ -213,29 +221,23 @@ export function Sender() {
   return (
     <div className={styles.container}>
       <div className={styles.senderContainer}>
-        {state === 'init' && (
-          <div className={styles.stateSection}>
-            <div className={styles.statusIcon}>{statusIcon}</div>
-            <div className={styles.statusText}>{statusText}</div>
-            <div className={styles.statusDetail}>{statusDetail}</div>
-          </div>
+        {state === PageState.INIT && (
+          <LoadingState
+            icon={statusIcon}
+            text={statusText}
+            detail={statusDetail}
+          />
         )}
 
-        {state === 'error' && (
-          <div className={styles.stateSection}>
-            <div className={styles.statusIcon}>❌</div>
-            <div className={styles.statusText}>连接失败</div>
-            <div className={styles.statusDetail}>{errorDetail}</div>
-            <button onClick={retry} className={styles.retryBtn}>
-              重试
-            </button>
-            <button onClick={() => navigate({ to: '/' })} className={styles.backBtn}>
-              返回首页
-            </button>
-          </div>
+        {state === PageState.ERROR && (
+          <ErrorState
+            errorMessage={errorDetail}
+            onRetry={retry}
+            showBackButton={true}
+          />
         )}
 
-        {state === 'active' && (
+        {state === PageState.ACTIVE && (
           <div className={styles.stateSection}>
             <div className={styles.statusIcon}>{statusIcon}</div>
             <div className={styles.statusText}>{statusText}</div>
@@ -243,7 +245,10 @@ export function Sender() {
 
             {cameras.length > 0 && (
               <div className={styles.cameraSelection}>
-                <label htmlFor="cameraSelect" className={styles.cameraSelectionLabel}>
+                <label
+                  htmlFor="cameraSelect"
+                  className={styles.cameraSelectionLabel}
+                >
                   选择摄像头:
                 </label>
                 <select
@@ -279,9 +284,12 @@ export function Sender() {
               </div>
             </div>
 
-            <button onClick={stopStreaming} className={styles.stopBtn}>
-              停止推流
-            </button>
+            <div className={styles.buttonGroup}>
+              <button onClick={stopStreaming} className={styles.stopBtn}>
+                停止推流
+              </button>
+              <BackButton />
+            </div>
           </div>
         )}
       </div>

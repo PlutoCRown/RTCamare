@@ -3,6 +3,15 @@ import { useParams, useNavigate } from '@tanstack/react-router';
 import { WebRTCManager } from '../../utils/webrtc';
 import { WebSocketManager } from '../../utils/websocket';
 import { StateManager, ErrorHandler } from '../../utils/state-manager';
+import { PageState } from '../../types/enums';
+import { ErrorState } from '../shared/ErrorState';
+import { LoadingState } from '../shared/LoadingState';
+import { PlayButton } from '../shared/PlayButton';
+import { BackButton } from '../shared/BackButton';
+import {
+  SocketEventType,
+  createSocketMessage,
+} from '../../../../shared/types/socket-events';
 import styles from './index.module.css';
 
 export function Viewer() {
@@ -17,7 +26,7 @@ export function Viewer() {
   const waitingDialogRef = useRef<HTMLDialogElement>(null);
   const controlPanelRef = useRef<HTMLDivElement>(null);
 
-  const [state, setState] = useState<'init' | 'error' | 'active' | 'waiting'>('init');
+  const [state, setState] = useState<PageState>(PageState.INIT);
   const [statusIcon, setStatusIcon] = useState('⏳');
   const [statusText, setStatusText] = useState('等待发送方');
   const [statusDetail, setStatusDetail] = useState('');
@@ -28,6 +37,7 @@ export function Viewer() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showWaitingDialog, setShowWaitingDialog] = useState(false);
   const [isWaitingForNewSender, setIsWaitingForNewSender] = useState(false);
+  const [showPlayButton, setShowPlayButton] = useState(false);
 
   useEffect(() => {
     webrtcRef.current = new WebRTCManager();
@@ -35,26 +45,24 @@ export function Viewer() {
     stateManagerRef.current = new StateManager();
 
     const stateManager = stateManagerRef.current;
-    const webrtc = webrtcRef.current;
-    const wsManager = wsManagerRef.current;
 
-    stateManager.onState(StateManager.STATES.INIT, () => {
-      setState('init');
+    stateManager.onState(PageState.INIT, () => {
+      setState(PageState.INIT);
       setStatusIcon('⏳');
       setStatusText('等待发送方');
       setStatusDetail(`房间: ${room}`);
     });
 
-    stateManager.onState(StateManager.STATES.ERROR, (data: any) => {
-      setState('error');
+    stateManager.onState(PageState.ERROR, (data: any) => {
+      setState(PageState.ERROR);
       setErrorDetail(data.message);
     });
 
-    stateManager.onState(StateManager.STATES.ACTIVE, () => {
-      setState('active');
+    stateManager.onState(PageState.ACTIVE, () => {
+      setState(PageState.ACTIVE);
     });
 
-    stateManager.onState(StateManager.STATES.WAITING, () => {
+    stateManager.onState(PageState.WAITING, () => {
       setShowWaitingDialog(true);
       setIsWaitingForNewSender(true);
     });
@@ -94,9 +102,10 @@ export function Viewer() {
         console.log('Received remote stream', event);
         if (remoteVideoRef.current && !remoteVideoRef.current.srcObject) {
           remoteVideoRef.current.srcObject = event.streams[0];
-          stateManager.setState(StateManager.STATES.ACTIVE);
-          autoPlayVideo().catch(() => {
-            console.log('Auto-play blocked, waiting for user interaction');
+          stateManager.setState(PageState.ACTIVE);
+          autoPlayVideo().catch((error) => {
+            console.log('Auto-play blocked, waiting for user interaction', error);
+            setShowPlayButton(true);
           });
         }
       };
@@ -105,31 +114,55 @@ export function Viewer() {
         console.log('ICE connection state:', pc.iceConnectionState);
         if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
           if (remoteVideoRef.current?.srcObject) {
-            stateManager.setState(StateManager.STATES.ACTIVE);
+            stateManager.setState(PageState.ACTIVE);
           }
         }
       };
 
       pc.onicecandidate = (event) => {
         if (event.candidate) {
-          wsManager.send({
-            type: 'ice-candidate',
-            candidate: event.candidate,
-          });
+          wsManager.send(
+            createSocketMessage(SocketEventType.ICE_CANDIDATE, {
+              candidate: event.candidate,
+            })
+          );
         }
       };
 
       await wsManager.connect('viewer', room);
 
-      wsManager.onMessage((msg: any) => {
-        handleWebSocketMessage(msg);
+      // 使用类型安全的消息处理
+      wsManager.on(SocketEventType.JOINED, (msg) => {
+        console.log('Joined room as viewer', msg.role, msg.room);
       });
+
+      wsManager.on(SocketEventType.OFFER, (msg) => {
+        handleOffer(msg.sdp);
+      });
+
+      wsManager.on(SocketEventType.ICE_CANDIDATE, (msg) => {
+        handleIceCandidate(msg.candidate);
+      });
+
+      wsManager.on(SocketEventType.SENDER_LEFT, () => {
+        handleSenderLeft();
+      });
+
+      wsManager.on(SocketEventType.ERROR, (msg) => {
+        stateManager.setState(StateManager.STATES.ERROR, {
+          message: ErrorHandler.handleServerError(msg.reason),
+        });
+      });
+
+      wsManager.startListening();
 
       webrtc.startStatsMonitoring((statsData) => {
         setStats(statsData);
       });
 
-      wsManager.send({ type: 'ready' });
+      wsManager.send(
+        createSocketMessage(SocketEventType.READY, {})
+      );
     } catch (error: any) {
       console.error('Viewer initialization failed:', error);
       stateManager.setState(StateManager.STATES.ERROR, {
@@ -138,31 +171,6 @@ export function Viewer() {
     }
   };
 
-  const handleWebSocketMessage = (msg: any) => {
-    const webrtc = webrtcRef.current!;
-    const wsManager = wsManagerRef.current!;
-    const stateManager = stateManagerRef.current!;
-
-    switch (msg.type) {
-      case 'joined':
-        console.log('Joined room as viewer');
-        break;
-      case 'offer':
-        handleOffer(msg.sdp);
-        break;
-      case 'ice-candidate':
-        handleIceCandidate(msg.candidate);
-        break;
-      case 'sender-left':
-        handleSenderLeft();
-        break;
-      case 'error':
-        stateManager.setState(StateManager.STATES.ERROR, {
-          message: ErrorHandler.handleServerError(msg.reason),
-        });
-        break;
-    }
-  };
 
   const handleOffer = async (sdp: RTCSessionDescriptionInit) => {
     const webrtc = webrtcRef.current!;
@@ -174,14 +182,15 @@ export function Viewer() {
       const answer = await webrtc.pc!.createAnswer();
       await webrtc.pc!.setLocalDescription(answer);
 
-      wsManager.send({
-        type: 'answer',
-        sdp: answer,
-      });
+      wsManager.send(
+        createSocketMessage(SocketEventType.ANSWER, {
+          sdp: answer,
+        })
+      );
 
       const hasReceivers = webrtc.pc!.getReceivers().length > 0;
       if (hasReceivers && remoteVideoRef.current?.srcObject) {
-        stateManager.setState(StateManager.STATES.ACTIVE);
+        stateManager.setState(PageState.ACTIVE);
       }
     } catch (error: any) {
       console.error('Failed to handle offer:', error);
@@ -200,7 +209,7 @@ export function Viewer() {
   const handleSenderLeft = () => {
     setIsWaitingForNewSender(true);
     const stateManager = stateManagerRef.current!;
-    stateManager.setState(StateManager.STATES.WAITING);
+    stateManager.setState(PageState.WAITING);
   };
 
   const autoPlayVideo = async () => {
@@ -208,17 +217,29 @@ export function Viewer() {
       try {
         await remoteVideoRef.current.play();
         console.log('Video started playing');
+        setShowPlayButton(false);
       } catch (error) {
         console.error('Failed to auto-play video:', error);
+        setShowPlayButton(true);
+      }
+    }
+  };
+
+  const handlePlayButtonClick = async () => {
+    if (remoteVideoRef.current) {
+      try {
+        await remoteVideoRef.current.play();
+        setShowPlayButton(false);
+      } catch (error) {
+        console.error('Failed to play video:', error);
+        // 保持播放按钮显示
       }
     }
   };
 
   const handleVideoClick = () => {
     if (remoteVideoRef.current && remoteVideoRef.current.paused) {
-      remoteVideoRef.current.play().catch((err) => {
-        console.error('Failed to play video on click:', err);
-      });
+      handlePlayButtonClick();
     }
   };
 
@@ -296,32 +317,36 @@ export function Viewer() {
   return (
     <div className={styles.container}>
       <div ref={videoContainerRef} className={styles.videoContainer} onClick={handleVideoClick}>
-        <video ref={remoteVideoRef} className={styles.remoteVideo} autoPlay playsInline />
+        <video 
+          ref={remoteVideoRef} 
+          className={styles.remoteVideo} 
+          autoPlay 
+          playsInline 
+          onPlay={() => setShowPlayButton(false)}
+          onPause={() => {
+            if (remoteVideoRef.current && remoteVideoRef.current.srcObject) {
+              setShowPlayButton(true);
+            }
+          }}
+        />
+        {showPlayButton && state === PageState.ACTIVE && (
+          <PlayButton onClick={handlePlayButtonClick} />
+        )}
       </div>
 
-      {state === 'init' && (
+      {state === PageState.INIT && (
         <div className={styles.overlayState}>
-          <div className={styles.statusIcon}>{statusIcon}</div>
-          <div className={styles.statusText}>{statusText}</div>
-          <div className={styles.statusDetail}>{statusDetail}</div>
+          <LoadingState icon={statusIcon} text={statusText} detail={statusDetail} />
         </div>
       )}
 
-      {state === 'error' && (
+      {state === PageState.ERROR && (
         <div className={styles.overlayState}>
-          <div className={styles.statusIcon}>❌</div>
-          <div className={styles.statusText}>连接失败</div>
-          <div className={styles.statusDetail}>{errorDetail}</div>
-          <button onClick={retry} className={styles.retryBtn}>
-            重试
-          </button>
-          <button onClick={() => navigate({ to: '/' })} className={styles.backBtn}>
-            返回首页
-          </button>
+          <ErrorState errorMessage={errorDetail} onRetry={retry} showBackButton={true} />
         </div>
       )}
 
-      {state === 'active' && (
+      {state === PageState.ACTIVE && (
         <div ref={controlPanelRef} className={`${styles.controlPanel} ${isPanelExpanded ? styles.expanded : ''}`}>
           <button onClick={toggleControlPanel} className={styles.toggleBtn}>
             📊
@@ -361,6 +386,7 @@ export function Viewer() {
               <button onClick={stopViewing} className={`${styles.controlBtn} ${styles.stop}`}>
                 停止接收
               </button>
+              <BackButton />
             </div>
           </div>
         </div>

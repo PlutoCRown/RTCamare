@@ -1,11 +1,23 @@
+import {
+  SocketEventType,
+  SocketRole,
+  TypedSocketMessage,
+  AnySocketMessage,
+  SocketMessageHandlers,
+  SocketMessageHandler,
+  createSocketMessage,
+  isSocketMessage,
+} from '../../../shared/types/socket-events';
+
 // WebSocket 连接管理类
 export class WebSocketManager {
   ws: WebSocket | null = null;
   reconnectAttempts = 0;
   maxReconnectAttempts = 5;
   reconnectDelay = 1000;
+  private handlers: SocketMessageHandlers = {};
 
-  connect(role: string, room: string) {
+  connect(role: SocketRole, room: string) {
     return new Promise<void>((resolve, reject) => {
       const protocol = location.protocol === "https:" ? "wss" : "ws";
       this.ws = new WebSocket(`${protocol}://${location.host}/ws`);
@@ -14,12 +26,13 @@ export class WebSocketManager {
         console.log("WebSocket connected");
         this.reconnectAttempts = 0;
 
-        // 发送加入房间消息
-        this.send({
-          type: "join",
-          role: role,
-          room: room,
-        });
+        // 发送加入房间消息（类型安全）
+        this.send(
+          createSocketMessage(SocketEventType.JOIN, {
+            role,
+            room,
+          })
+        );
 
         resolve();
       });
@@ -50,7 +63,8 @@ export class WebSocketManager {
     });
   }
 
-  send(message: any) {
+  // 类型安全的消息发送方法
+  send<T extends SocketEventType>(message: TypedSocketMessage<T>) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(message));
     } else {
@@ -58,11 +72,46 @@ export class WebSocketManager {
     }
   }
 
-  onMessage(callback: (message: any) => void) {
+  // 类型安全的消息监听方法（单个事件类型）
+  on<T extends SocketEventType>(
+    eventType: T,
+    handler: SocketMessageHandler<T>
+  ) {
+    this.handlers[eventType] = handler as SocketMessageHandler<any>;
+  }
+
+  // 类型安全的消息监听方法（多个事件类型）
+  onMessage(handlers: SocketMessageHandlers) {
+    Object.assign(this.handlers, handlers);
+  }
+
+  // 启动消息监听
+  startListening() {
     if (this.ws) {
       this.ws.addEventListener("message", (event) => {
         try {
-          const message = JSON.parse(event.data);
+          const message = JSON.parse(event.data) as AnySocketMessage;
+          
+          // 根据消息类型调用对应的处理器
+          const handler = this.handlers[message.type];
+          if (handler) {
+            handler(message as any);
+          } else {
+            console.warn(`No handler registered for message type: ${message.type}`);
+          }
+        } catch (error) {
+          console.error("Failed to parse WebSocket message:", error);
+        }
+      });
+    }
+  }
+
+  // 兼容旧版本的 onMessage 方法（保持向后兼容）
+  onMessageLegacy(callback: (message: AnySocketMessage) => void) {
+    if (this.ws) {
+      this.ws.addEventListener("message", (event) => {
+        try {
+          const message = JSON.parse(event.data) as AnySocketMessage;
           callback(message);
         } catch (error) {
           console.error("Failed to parse WebSocket message:", error);
@@ -75,6 +124,7 @@ export class WebSocketManager {
     if (this.ws) {
       this.ws.close(1000, "Normal closure");
       this.ws = null;
+      this.handlers = {};
     }
   }
 }
