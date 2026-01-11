@@ -82,9 +82,9 @@ export class ErrorHandler {
   static handleServerError(errorCode: string): string {
     switch (errorCode) {
       case ErrorType.SENDER_ALREADY_EXISTS:
-        return "房间中已有发送方，请选择其他房间或等待";
+        return "房间中已有发送方，请选择其他房间";
       case ErrorType.VIEWER_ALREADY_EXISTS:
-        return "房间中已有接收方，请选择其他房间或等待";
+        return "房间中已有接收方，请选择其他房间";
       case ErrorType.SERVER_ERROR:
         return "服务器错误，请稍后重试";
       default:

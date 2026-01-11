@@ -6,8 +6,7 @@ import {
   SocketMessageHandlers,
   SocketMessageHandler,
   createSocketMessage,
-  isSocketMessage,
-} from '../../../shared/types/socket-events';
+} from "../../../shared/types/socket-events";
 
 // WebSocket 连接管理类
 export class WebSocketManager {
@@ -16,8 +15,25 @@ export class WebSocketManager {
   maxReconnectAttempts = 5;
   reconnectDelay = 1000;
   private handlers: SocketMessageHandlers = {};
+  private _role: SocketRole | null = null;
+  private _room: string | null = null;
+  private beforeUnloadHandler: ((e: BeforeUnloadEvent) => void) | null = null;
 
   connect(role: SocketRole, room: string) {
+    // 保存角色和房间信息（用于状态管理）
+    this._role = role;
+    this._room = room;
+
+    // 添加 beforeunload 事件监听
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+    }
+    this.beforeUnloadHandler = () => {
+      // 在页面卸载前尝试关闭连接
+      this.close();
+    };
+    window.addEventListener("beforeunload", this.beforeUnloadHandler);
+
     return new Promise<void>((resolve, reject) => {
       const protocol = location.protocol === "https:" ? "wss" : "ws";
       this.ws = new WebSocket(`${protocol}://${location.host}/ws`);
@@ -91,13 +107,15 @@ export class WebSocketManager {
       this.ws.addEventListener("message", (event) => {
         try {
           const message = JSON.parse(event.data) as AnySocketMessage;
-          
+
           // 根据消息类型调用对应的处理器
           const handler = this.handlers[message.type];
           if (handler) {
             handler(message as any);
           } else {
-            console.warn(`No handler registered for message type: ${message.type}`);
+            console.warn(
+              `No handler registered for message type: ${message.type}`
+            );
           }
         } catch (error) {
           console.error("Failed to parse WebSocket message:", error);
@@ -121,10 +139,38 @@ export class WebSocketManager {
   }
 
   close() {
+    // 移除 beforeunload 事件监听
+    if (this.beforeUnloadHandler) {
+      window.removeEventListener("beforeunload", this.beforeUnloadHandler);
+      this.beforeUnloadHandler = null;
+    }
+
     if (this.ws) {
-      this.ws.close(1000, "Normal closure");
+      // 尝试正常关闭连接（会触发服务器端的 close 事件）
+      try {
+        if (this.ws.readyState === WebSocket.OPEN) {
+          this.ws.close(1000, "Normal closure");
+        } else if (this.ws.readyState === WebSocket.CONNECTING) {
+          // 如果还在连接中，等待连接完成再关闭
+          this.ws.addEventListener(
+            "open",
+            () => {
+              this.ws?.close(1000, "Normal closure");
+            },
+            { once: true }
+          );
+        } else {
+          this.ws.close();
+        }
+      } catch (error) {
+        console.warn("Error closing WebSocket:", error);
+        // 如果关闭失败，强制设置为 null
+        this.ws = null;
+      }
       this.ws = null;
       this.handlers = {};
     }
+    this._role = null;
+    this._room = null;
   }
 }

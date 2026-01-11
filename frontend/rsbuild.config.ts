@@ -25,7 +25,7 @@ export default defineConfig({
         target: "ws://localhost:8080",
         ws: true,
       },
-      "/config": {
+      "/api": {
         target: "http://localhost:8080", // 后端使用 HTTP
         changeOrigin: true,
       },

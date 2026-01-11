@@ -1,16 +1,16 @@
-const {
+import {
   createHttpServer,
   getLocalIP,
   HTTP_HOST,
   HTTP_PORT,
   STUN_PORT,
-} = require("./http");
-const { setupWebSocket } = require("./websocket");
-const { setupStun } = require("./stun");
-const QRCode = require("qrcode");
+} from "./http";
+import { setupWebSocket } from "./websocket";
+import { setupStun } from "./stun";
+import * as QRCode from "qrcode";
 
 // 启动服务器
-function startServer() {
+export function startServer(): void {
   const server = createHttpServer();
 
   setupWebSocket(server);
@@ -35,14 +35,18 @@ function startServer() {
     QRCode.toString(
       receiverUrl,
       { type: "terminal", small: true, errorCorrectionLevel: "L" },
-      function (err, url) {
+      function (err?: Error | null, url?: string) {
+        if (err) {
+          console.error("生成二维码失败:", err);
+          return;
+        }
         console.log(url);
         console.log(`🔧 STUN 服务器：udp://${localIP}:${STUN_PORT}`);
       }
     );
   });
 
-  server.on("error", (err) => {
+  server.on("error", (err: Error) => {
     console.error("Server error:", err);
     process.exit(1);
   });
@@ -52,7 +56,3 @@ function startServer() {
 if (require.main === module) {
   startServer();
 }
-
-module.exports = {
-  startServer,
-};

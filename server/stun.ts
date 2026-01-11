@@ -1,12 +1,13 @@
-const stun = require("stun");
+import * as stun from "stun";
+import type { Server, Message, RInfo } from "stun";
 
-const STUN_PORT = parseInt(process.env.STUN_PORT || "3478", 10);
+export const STUN_PORT = parseInt(process.env.STUN_PORT || "3478", 10);
 
 // STUN 服务器 (UDP 3478)
-function setupStun() {
+export function setupStun(): Server {
   const server = stun.createServer({ type: "udp4" });
 
-  server.on("bindingRequest", (req, rinfo) => {
+  server.on("bindingRequest", (req: Message, rinfo: RInfo) => {
     console.log("[STUN] bindingRequest", req, rinfo);
     const res = stun.createMessage(
       stun.constants.STUN_BINDING_RESPONSE,
@@ -26,8 +27,3 @@ function setupStun() {
 
   return server;
 }
-
-module.exports = {
-  setupStun,
-  STUN_PORT,
-};

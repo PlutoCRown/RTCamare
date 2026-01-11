@@ -8,7 +8,7 @@ export class WebRTCManager {
   async createPeerConnection() {
     try {
       // 获取 ICE 服务器配置
-      const res = await fetch("/config", { credentials: "same-origin" });
+      const res = await fetch("/api/config", { credentials: "same-origin" });
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data.iceServers)) {

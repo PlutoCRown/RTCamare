@@ -4,6 +4,7 @@ import { RouterProvider, createRouter, createRootRoute, createRoute, Outlet } fr
 import { Home } from './components/Home';
 import { Sender } from './components/Sender';
 import { Viewer } from './components/Viewer';
+import { Status } from './components/Status';
 import './index.css';
 
 const rootRoute = createRootRoute({
@@ -28,7 +29,13 @@ const viewerRoute = createRoute({
   component: Viewer,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, senderRoute, viewerRoute]);
+const statusRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/status',
+  component: Status,
+});
+
+const routeTree = rootRoute.addChildren([indexRoute, senderRoute, viewerRoute, statusRoute]);
 
 const router = createRouter({
   routeTree,
