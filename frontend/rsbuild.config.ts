@@ -17,6 +17,9 @@ export default defineConfig({
     entry: {
       index: "./src/main.tsx",
     },
+    alias: {
+      "@": path.resolve(__dirname, "./src"),
+    },
   },
   server: {
     port: 3000,

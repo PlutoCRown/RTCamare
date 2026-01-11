@@ -1,4 +1,4 @@
-import { PageState } from "../types/enums";
+import { PageState } from "@/types/enums";
 
 // 状态管理工具类
 export class StateManager {
@@ -51,7 +51,7 @@ export class StateManager {
   };
 }
 
-import { ErrorType } from "../types/enums";
+import { ErrorType } from "@/types/enums";
 
 // 错误处理工具类
 export class ErrorHandler {

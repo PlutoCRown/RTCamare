@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { WebRTCManager } from "../../utils/webrtc";
-import { WebSocketManager } from "../../utils/websocket";
-import { StateManager, ErrorHandler } from "../../utils/state-manager";
-import { PageState } from "../../types/enums";
-import { ErrorState } from "../shared/ErrorState";
-import { LoadingState } from "../shared/LoadingState";
-import { PlayButton } from "../shared/PlayButton";
-import { BackButton } from "../shared/BackButton";
+import { WebRTCManager } from "@/utils/webrtc";
+import { WebSocketManager } from "@/utils/websocket";
+import { StateManager, ErrorHandler } from "@/utils/state-manager";
+import { generateQRCodeDataUrl } from "@/utils/qrcode";
+import { PageState } from "@/types/enums";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
+import { PlayButton } from "@/components/PlayButton";
+import { BackButton } from "@/components/BackButton";
 import {
   SocketEventType,
   createSocketMessage,
@@ -43,7 +44,6 @@ export function Viewer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showWaitingDialog, setShowWaitingDialog] = useState(false);
-  const [isWaitingForNewSender, setIsWaitingForNewSender] = useState(false);
   const [showPlayButton, setShowPlayButton] = useState(false);
   const [qrCodeUrl, setQrCodeUrl] = useState<string>("");
 
@@ -78,7 +78,6 @@ export function Viewer() {
 
     stateManager.onState(PageState.WAITING, () => {
       setShowWaitingDialog(true);
-      setIsWaitingForNewSender(true);
     });
 
     // 生成二维码
@@ -92,12 +91,6 @@ export function Viewer() {
 
     document.addEventListener("fullscreenchange", handleFullscreenChange);
 
-    const handleKeyDown = (e: KeyboardEvent) => {
-      handleKeyboard(e);
-    };
-
-    document.addEventListener("keydown", handleKeyDown);
-
     cleanupRef.current = cleanup;
 
     return () => {
@@ -106,19 +99,13 @@ export function Viewer() {
         cleanupRef.current = null;
       }
       document.removeEventListener("fullscreenchange", handleFullscreenChange);
-      document.removeEventListener("keydown", handleKeyDown);
     };
   }, [room]);
 
   const generateQRCode = async () => {
     try {
-      const QRCode = await import("qrcode");
       const senderUrl = `${location.origin}/sender/${room}`;
-      const dataUrl = await QRCode.toDataURL(senderUrl, {
-        width: 200,
-        margin: 2,
-        color: { dark: "#000000", light: "#FFFFFF" },
-      });
+      const dataUrl = await generateQRCodeDataUrl(senderUrl);
       setQrCodeUrl(dataUrl);
     } catch (error) {
       console.error("Failed to generate QR code:", error);
@@ -243,7 +230,6 @@ export function Viewer() {
   };
 
   const handleSenderLeft = () => {
-    setIsWaitingForNewSender(true);
     const stateManager = stateManagerRef.current!;
     stateManager.setState(PageState.WAITING);
   };
@@ -304,7 +290,6 @@ export function Viewer() {
 
   const cancelWaitingForSender = () => {
     setShowWaitingDialog(false);
-    setIsWaitingForNewSender(false);
     navigate({ to: "/" });
   };
 
@@ -327,26 +312,6 @@ export function Viewer() {
     }
     if (waitingDialogRef.current) {
       waitingDialogRef.current.close();
-    }
-  };
-
-  const handleKeyboard = (e: KeyboardEvent) => {
-    switch (e.key) {
-      case "f":
-      case "F":
-        toggleFullscreen();
-        break;
-      case "m":
-      case "M":
-        toggleMute();
-        break;
-      case "Escape":
-        if (isPanelExpanded) {
-          hideControlPanel();
-        } else if (showWaitingDialog && waitingDialogRef.current?.open) {
-          cancelWaitingForSender();
-        }
-        break;
     }
   };
 

@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate } from "@tanstack/react-router";
-import { WebRTCManager } from "../../utils/webrtc";
-import { WebSocketManager } from "../../utils/websocket";
-import { StateManager, ErrorHandler } from "../../utils/state-manager";
-import { PageState } from "../../types/enums";
-import { ErrorState } from "../shared/ErrorState";
-import { LoadingState } from "../shared/LoadingState";
-import { BackButton } from "../shared/BackButton";
+import { WebRTCManager } from "@/utils/webrtc";
+import { WebSocketManager } from "@/utils/websocket";
+import { StateManager, ErrorHandler } from "@/utils/state-manager";
+import { PageState } from "@/types/enums";
+import { ErrorState } from "@/components/ErrorState";
+import { LoadingState } from "@/components/LoadingState";
+import { BackButton } from "@/components/BackButton";
 import {
   SocketEventType,
   createSocketMessage,

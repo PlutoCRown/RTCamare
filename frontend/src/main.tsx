@@ -1,11 +1,17 @@
-import React from 'react';
-import ReactDOM from 'react-dom/client';
-import { RouterProvider, createRouter, createRootRoute, createRoute, Outlet } from '@tanstack/react-router';
-import { Home } from './components/Home';
-import { Sender } from './components/Sender';
-import { Viewer } from './components/Viewer';
-import { Status } from './components/Status';
-import './index.css';
+import React from "react";
+import ReactDOM from "react-dom/client";
+import {
+  RouterProvider,
+  createRouter,
+  createRootRoute,
+  createRoute,
+  Outlet,
+} from "@tanstack/react-router";
+import "./index.css";
+import { Home } from "./pages/Home";
+import { Viewer } from "./pages/Viewer";
+import { Sender } from "./pages/Sender";
+import { Status } from "./pages/Status";
 
 const rootRoute = createRootRoute({
   component: () => <Outlet />,
@@ -13,42 +19,47 @@ const rootRoute = createRootRoute({
 
 const indexRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/',
+  path: "/",
   component: Home,
 });
 
 const senderRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/sender/$room',
+  path: "/sender/$room",
   component: Sender,
 });
 
 const viewerRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/viewer/$room',
+  path: "/viewer/$room",
   component: Viewer,
 });
 
 const statusRoute = createRoute({
   getParentRoute: () => rootRoute,
-  path: '/status',
+  path: "/status",
   component: Status,
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, senderRoute, viewerRoute, statusRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  senderRoute,
+  viewerRoute,
+  statusRoute,
+]);
 
 const router = createRouter({
   routeTree,
-  defaultPreload: 'intent',
+  defaultPreload: "intent",
 });
 
-declare module '@tanstack/react-router' {
+declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
   }
 }
 
-const rootElement = document.getElementById('root')!;
+const rootElement = document.getElementById("root")!;
 if (!rootElement.innerHTML) {
   const root = ReactDOM.createRoot(rootElement);
   root.render(

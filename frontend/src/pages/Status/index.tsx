@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { BackButton } from "../shared/BackButton";
+import { BackButton } from "@/components/BackButton";
 import styles from "./index.module.css";
 
 interface RoomStatus {
